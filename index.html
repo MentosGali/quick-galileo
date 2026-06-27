@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PixelArt Animation Tool â€” ASM 320Ã—200</title>
+    <title>PixelArt Animation Tool — ASM 320×200</title>
     <meta
       name="description"
-      content="Herramienta de animaciÃ³n pixel art. Exporta DRAW_REGION / PINTAR_PIXEL en archivos .asm por capa."
+      content="Herramienta de animación pixel art. Exporta DRAW_REGION / PINTAR_PIXEL en archivos .asm por capa."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,20 +14,21 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <!-- JSZip para exportar mÃºltiples archivos en un ZIP -->
+    <!-- JSZip para exportar múltiples archivos en un ZIP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app-container">
       <header class="app-header">
+      <header class="app-header">
         <div class="logo-area">
-          <span class="logo-icon">ðŸŽ¬</span>
+          <span class="logo-icon">🎬</span>
           <div>
             <h1>PixelArt Animation Tool</h1>
             <p class="subtitle">
-              Paleta VGA 256 Â· Fondo persistente Â· Frames Â· Onion Skinning Â·
-              320Ã—200 px Â· Exporta .ASM
+              Paleta VGA 256 · Fondo persistente · Frames · Onion Skinning ·
+              320×200 px · Exporta .ASM
             </p>
           </div>
         </div>
@@ -36,45 +37,45 @@
             <button
               id="btn-mode-rect"
               class="btn btn-primary active"
-              title="DRAW_REGION: rectÃ¡ngulo con dos clics"
+              title="DRAW_REGION: rectángulo con dos clics"
             >
-              â–¬ Rect
+              ▬ Rect
             </button>
             <button
               id="btn-mode-single"
               class="btn btn-secondary"
-              title="PINTAR_PIXEL: un solo pÃ­xel con un clic"
+              title="PINTAR_PIXEL: un solo píxel con un clic"
             >
-              Â· Pixel
+              · Pixel
             </button>
             <button
               id="btn-mode-stamp"
               class="btn btn-secondary"
               title="Estampar plantilla guardada"
             >
-              â¬› Stamp
+              ⬛ Stamp
             </button>
           </div>
           <button
             id="btn-toggle-grid"
             class="btn btn-primary"
-            title="Alternar cuadrÃ­cula"
+            title="Alternar cuadrícula"
           >
-            <span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON
+            <span class="btn-icon">🌐</span> Cuadrícula: ON
           </button>
           <button
             id="btn-toggle-onion"
             class="btn btn-primary"
             title="Onion Skinning: ver frames anteriores desvanecidos"
           >
-            <span class="btn-icon">ðŸ§…</span> Cebolla: ON
+            <span class="btn-icon">🧅</span> Cebolla: ON
           </button>
           <button
             id="btn-clear"
             class="btn btn-danger"
             title="Limpiar la capa activa"
           >
-            <span class="btn-icon">ðŸ—‘ï¸</span> Limpiar
+            <span class="btn-icon">🗑️</span> Limpiar
           </button>
         </div>
       </header>
@@ -86,10 +87,10 @@
             <!-- Indicador de capa activa -->
             <div class="active-layer-bar">
               <span id="active-layer-label" class="active-layer-label"
-                >âœï¸ Editando: Fondo</span
+                >✏️ Editando: Fondo</span
               >
               <span class="active-layer-hint"
-                >â† Selecciona una capa en el panel derecho</span
+                >← Selecciona una capa en el panel derecho</span
               >
             </div>
 
@@ -100,7 +101,7 @@
 
             <div class="zoom-info">
               <span
-                >ResoluciÃ³n: 320 Ã— 200 px | Origen (0,0) = Esquina superior
+                >Resolución: 320 × 200 px | Origen (0,0) = Esquina superior
                 izquierda</span
               >
               <span id="coords-hover" class="coords-hover">X: 0 Y: 0</span>
@@ -110,7 +111,7 @@
           <!-- Paleta VGA 256 colores -->
           <section class="palette-container">
             <div class="palette-header">
-              <h3>Paleta VGA â€” 256 Colores (Ã­ndices 0â€“255)</h3>
+              <h3>Paleta VGA — 256 Colores (índices 0–255)</h3>
               <span class="color-badge-text">
                 Color activo: <span id="color-preview-circle"></span>
                 <strong id="color-index-text"
@@ -127,28 +128,28 @@
         <!-- DERECHA: Sidebar -->
         <aside class="sidebar-section">
           <div class="sidebar-header">
-            <h3>Gestor de AnimaciÃ³n</h3>
+            <h3>Gestor de Animación</h3>
             <span class="count-badge" id="rect-count">0 Rects</span>
           </div>
           <div class="sidebar-body">
-            <!-- GuÃ­a rÃ¡pida -->
+            <!-- Guía rápida -->
             <div class="instructions-card">
-              <h4>ðŸŽ¬ Flujo de trabajo ASM</h4>
+              <h4>🎬 Flujo de trabajo ASM</h4>
               <ol>
                 <li>
                   <strong>Fondo:</strong> Se exporta como
                   <code>fondo.asm</code> y se repinta antes de cada frame
                 </li>
                 <li>
-                  <strong>Rect</strong> â†’
+                  <strong>Rect</strong> →
                   <code>DRAW_REGION X1,Y1, X2,Y2 , (XXXX)H</code>
                 </li>
                 <li>
-                  <strong>Pixel</strong> â†’
+                  <strong>Pixel</strong> →
                   <code>PINTAR_PIXEL (X), (Y), (IDX)</code>
                 </li>
                 <li>
-                  <strong>Exportar</strong> -> ZIP con
+                  <strong>Exportar</strong> → ZIP con
                   <code
                     >fondo.asm + F1.asm ... Fn.asm + Orquesta.asm +
                     build.bat</code
@@ -160,28 +161,28 @@
             <!-- Fondo + Frames -->
             <div class="layers-container">
               <div class="section-title-row">
-                <h4>ðŸŽžï¸ Fondo + Frames</h4>
+                <h4>🎞️ Fondo + Frames</h4>
                 <div class="layer-actions">
                   <button
                     id="btn-edit-background"
                     class="btn btn-secondary btn-sm"
                     title="Editar el Fondo"
                   >
-                    ðŸŒ„ Fondo
+                    🌄 Fondo
                   </button>
                   <button
                     id="btn-add-frame"
                     class="btn btn-secondary btn-sm"
                     title="Nuevo frame"
                   >
-                    âž• Frame
+                    ➕ Frame
                   </button>
                   <button
                     id="btn-clone-frame"
                     class="btn btn-secondary btn-sm"
                     title="Clonar frame activo"
                   >
-                    ðŸ“‹ Clonar
+                    📋 Clonar
                   </button>
                 </div>
               </div>
@@ -193,13 +194,13 @@
             <!-- Plantillas -->
             <div class="templates-container">
               <div class="section-title-row">
-                <h4>ðŸ–¼ï¸ Plantillas de Sprites</h4>
+                <h4>🖼️ Plantillas de Sprites</h4>
                 <button
                   id="btn-create-template"
                   class="btn btn-secondary btn-sm"
                   title="Guardar dibujo actual como plantilla"
                 >
-                  âž• Guardar
+                  ➕ Guardar
                 </button>
               </div>
               <ul id="templates-list" class="templates-list">
@@ -209,7 +210,24 @@
 
             <!-- Coordenadas capa activa -->
             <div class="history-list-container">
-              <h4>ðŸ“‹ Comandos ASM â€” Capa Activa</h4>
+              <h4>📋 Comandos ASM — Capa Activa</h4>
+              <div class="memory-meter" aria-label="Uso estimado de memoria">
+                <div class="memory-meter-header">
+                  <span class="memory-meter-title">Memoria estimada</span>
+                  <span id="memory-text" class="memory-meter-text"
+                    >0.0 KB / 400 KB</span
+                  >
+                </div>
+                <div
+                  class="memory-track"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow="0"
+                >
+                  <div id="memory-bar" class="memory-bar"></div>
+                </div>
+              </div>
               <ul id="history-list" class="history-list">
                 <li class="empty-state">No hay figuras en esta capa.</li>
               </ul>
@@ -218,7 +236,7 @@
 
           <div class="sidebar-footer">
             <button id="btn-export" class="btn btn-primary btn-block">
-              <span class="btn-icon">ðŸ“¦</span> Exportar .ASM (ZIP)
+              <span class="btn-icon">📦</span> Exportar .ASM (ZIP)
             </button>
           </div>
         </aside>

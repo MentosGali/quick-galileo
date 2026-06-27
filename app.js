@@ -1,4 +1,5 @@
 ﻿// ==========================================
+// ==========================================
 //  PIXEL ART ANIMATION TOOL - app.js
 //  Paleta VGA 256 colores (modo 13h)
 //  Exporta archivos .asm por capa + orquestador
@@ -10,81 +11,273 @@
 // ==========================================
 const VGA_PALETTE = [
   // 0-15: Colores bÃ¡sicos EGA/VGA
-  [0,0,0],[0,0,168],[0,168,0],[0,168,168],
-  [168,0,0],[168,0,168],[168,84,0],[168,168,168],
-  [84,84,84],[84,84,252],[84,252,84],[84,252,252],
-  [252,84,84],[252,84,252],[252,252,84],[252,252,252],
+  [0, 0, 0],
+  [0, 0, 168],
+  [0, 168, 0],
+  [0, 168, 168],
+  [168, 0, 0],
+  [168, 0, 168],
+  [168, 84, 0],
+  [168, 168, 168],
+  [84, 84, 84],
+  [84, 84, 252],
+  [84, 252, 84],
+  [84, 252, 252],
+  [252, 84, 84],
+  [252, 84, 252],
+  [252, 252, 84],
+  [252, 252, 252],
   // 16-31
-  [0,0,0],[20,20,20],[32,32,32],[44,44,44],
-  [56,56,56],[68,68,68],[80,80,80],[96,96,96],
-  [112,112,112],[128,128,128],[144,144,144],[160,160,160],
-  [180,180,180],[200,200,200],[224,224,224],[252,252,252],
+  [0, 0, 0],
+  [20, 20, 20],
+  [32, 32, 32],
+  [44, 44, 44],
+  [56, 56, 56],
+  [68, 68, 68],
+  [80, 80, 80],
+  [96, 96, 96],
+  [112, 112, 112],
+  [128, 128, 128],
+  [144, 144, 144],
+  [160, 160, 160],
+  [180, 180, 180],
+  [200, 200, 200],
+  [224, 224, 224],
+  [252, 252, 252],
   // 32-55: Azules
-  [0,0,252],[64,0,252],[124,0,252],[188,0,252],
-  [252,0,252],[252,0,188],[252,0,124],[252,0,64],
-  [252,0,0],[252,64,0],[252,124,0],[252,188,0],
-  [252,252,0],[188,252,0],[124,252,0],[64,252,0],
-  [0,252,0],[0,252,64],[0,252,124],[0,252,188],
-  [0,252,252],[0,188,252],[0,124,252],[0,64,252],
+  [0, 0, 252],
+  [64, 0, 252],
+  [124, 0, 252],
+  [188, 0, 252],
+  [252, 0, 252],
+  [252, 0, 188],
+  [252, 0, 124],
+  [252, 0, 64],
+  [252, 0, 0],
+  [252, 64, 0],
+  [252, 124, 0],
+  [252, 188, 0],
+  [252, 252, 0],
+  [188, 252, 0],
+  [124, 252, 0],
+  [64, 252, 0],
+  [0, 252, 0],
+  [0, 252, 64],
+  [0, 252, 124],
+  [0, 252, 188],
+  [0, 252, 252],
+  [0, 188, 252],
+  [0, 124, 252],
+  [0, 64, 252],
   // 56-79
-  [124,124,252],[156,124,252],[188,124,252],[220,124,252],
-  [252,124,252],[252,124,220],[252,124,188],[252,124,156],
-  [252,124,124],[252,156,124],[252,188,124],[252,220,124],
-  [252,252,124],[220,252,124],[188,252,124],[156,252,124],
-  [124,252,124],[124,252,156],[124,252,188],[124,252,220],
-  [124,252,252],[124,220,252],[124,188,252],[124,156,252],
+  [124, 124, 252],
+  [156, 124, 252],
+  [188, 124, 252],
+  [220, 124, 252],
+  [252, 124, 252],
+  [252, 124, 220],
+  [252, 124, 188],
+  [252, 124, 156],
+  [252, 124, 124],
+  [252, 156, 124],
+  [252, 188, 124],
+  [252, 220, 124],
+  [252, 252, 124],
+  [220, 252, 124],
+  [188, 252, 124],
+  [156, 252, 124],
+  [124, 252, 124],
+  [124, 252, 156],
+  [124, 252, 188],
+  [124, 252, 220],
+  [124, 252, 252],
+  [124, 220, 252],
+  [124, 188, 252],
+  [124, 156, 252],
   // 80-103
-  [180,180,252],[196,180,252],[216,180,252],[232,180,252],
-  [252,180,252],[252,180,232],[252,180,216],[252,180,196],
-  [252,180,180],[252,196,180],[252,216,180],[252,232,180],
-  [252,252,180],[232,252,180],[216,252,180],[196,252,180],
-  [180,252,180],[180,252,196],[180,252,216],[180,252,232],
-  [180,252,252],[180,232,252],[180,216,252],[180,196,252],
+  [180, 180, 252],
+  [196, 180, 252],
+  [216, 180, 252],
+  [232, 180, 252],
+  [252, 180, 252],
+  [252, 180, 232],
+  [252, 180, 216],
+  [252, 180, 196],
+  [252, 180, 180],
+  [252, 196, 180],
+  [252, 216, 180],
+  [252, 232, 180],
+  [252, 252, 180],
+  [232, 252, 180],
+  [216, 252, 180],
+  [196, 252, 180],
+  [180, 252, 180],
+  [180, 252, 196],
+  [180, 252, 216],
+  [180, 252, 232],
+  [180, 252, 252],
+  [180, 232, 252],
+  [180, 216, 252],
+  [180, 196, 252],
   // 104-127
-  [0,0,112],[28,0,112],[56,0,112],[84,0,112],
-  [112,0,112],[112,0,84],[112,0,56],[112,0,28],
-  [112,0,0],[112,28,0],[112,56,0],[112,84,0],
-  [112,112,0],[84,112,0],[56,112,0],[28,112,0],
-  [0,112,0],[0,112,28],[0,112,56],[0,112,84],
-  [0,112,112],[0,84,112],[0,56,112],[0,28,112],
+  [0, 0, 112],
+  [28, 0, 112],
+  [56, 0, 112],
+  [84, 0, 112],
+  [112, 0, 112],
+  [112, 0, 84],
+  [112, 0, 56],
+  [112, 0, 28],
+  [112, 0, 0],
+  [112, 28, 0],
+  [112, 56, 0],
+  [112, 84, 0],
+  [112, 112, 0],
+  [84, 112, 0],
+  [56, 112, 0],
+  [28, 112, 0],
+  [0, 112, 0],
+  [0, 112, 28],
+  [0, 112, 56],
+  [0, 112, 84],
+  [0, 112, 112],
+  [0, 84, 112],
+  [0, 56, 112],
+  [0, 28, 112],
   // 128-151
-  [56,56,112],[68,56,112],[84,56,112],[96,56,112],
-  [112,56,112],[112,56,96],[112,56,84],[112,56,68],
-  [112,56,56],[112,68,56],[112,84,56],[112,96,56],
-  [112,112,56],[96,112,56],[84,112,56],[68,112,56],
-  [56,112,56],[56,112,68],[56,112,84],[56,112,96],
-  [56,112,112],[56,96,112],[56,84,112],[56,68,112],
+  [56, 56, 112],
+  [68, 56, 112],
+  [84, 56, 112],
+  [96, 56, 112],
+  [112, 56, 112],
+  [112, 56, 96],
+  [112, 56, 84],
+  [112, 56, 68],
+  [112, 56, 56],
+  [112, 68, 56],
+  [112, 84, 56],
+  [112, 96, 56],
+  [112, 112, 56],
+  [96, 112, 56],
+  [84, 112, 56],
+  [68, 112, 56],
+  [56, 112, 56],
+  [56, 112, 68],
+  [56, 112, 84],
+  [56, 112, 96],
+  [56, 112, 112],
+  [56, 96, 112],
+  [56, 84, 112],
+  [56, 68, 112],
   // 152-175
-  [80,80,112],[88,80,112],[96,80,112],[104,80,112],
-  [112,80,112],[112,80,104],[112,80,96],[112,80,88],
-  [112,80,80],[112,88,80],[112,96,80],[112,104,80],
-  [112,112,80],[104,112,80],[96,112,80],[88,112,80],
-  [80,112,80],[80,112,88],[80,112,96],[80,112,104],
-  [80,112,112],[80,104,112],[80,96,112],[80,88,112],
+  [80, 80, 112],
+  [88, 80, 112],
+  [96, 80, 112],
+  [104, 80, 112],
+  [112, 80, 112],
+  [112, 80, 104],
+  [112, 80, 96],
+  [112, 80, 88],
+  [112, 80, 80],
+  [112, 88, 80],
+  [112, 96, 80],
+  [112, 104, 80],
+  [112, 112, 80],
+  [104, 112, 80],
+  [96, 112, 80],
+  [88, 112, 80],
+  [80, 112, 80],
+  [80, 112, 88],
+  [80, 112, 96],
+  [80, 112, 104],
+  [80, 112, 112],
+  [80, 104, 112],
+  [80, 96, 112],
+  [80, 88, 112],
   // 176-199: Escala de grises adicional y colores tierra
-  [0,0,64],[16,0,64],[32,0,64],[48,0,64],
-  [64,0,64],[64,0,48],[64,0,32],[64,0,16],
-  [64,0,0],[64,16,0],[64,32,0],[64,48,0],
-  [64,64,0],[48,64,0],[32,64,0],[16,64,0],
-  [0,64,0],[0,64,16],[0,64,32],[0,64,48],
-  [0,64,64],[0,48,64],[0,32,64],[0,16,64],
+  [0, 0, 64],
+  [16, 0, 64],
+  [32, 0, 64],
+  [48, 0, 64],
+  [64, 0, 64],
+  [64, 0, 48],
+  [64, 0, 32],
+  [64, 0, 16],
+  [64, 0, 0],
+  [64, 16, 0],
+  [64, 32, 0],
+  [64, 48, 0],
+  [64, 64, 0],
+  [48, 64, 0],
+  [32, 64, 0],
+  [16, 64, 0],
+  [0, 64, 0],
+  [0, 64, 16],
+  [0, 64, 32],
+  [0, 64, 48],
+  [0, 64, 64],
+  [0, 48, 64],
+  [0, 32, 64],
+  [0, 16, 64],
   // 200-223: Tonos pastel / piel
-  [32,32,64],[40,32,64],[48,32,64],[56,32,64],
-  [64,32,64],[64,32,56],[64,32,48],[64,32,40],
-  [64,32,32],[64,40,32],[64,48,32],[64,56,32],
-  [64,64,32],[56,64,32],[48,64,32],[40,64,32],
-  [32,64,32],[32,64,40],[32,64,48],[32,64,56],
-  [32,64,64],[32,56,64],[32,48,64],[32,40,64],
+  [32, 32, 64],
+  [40, 32, 64],
+  [48, 32, 64],
+  [56, 32, 64],
+  [64, 32, 64],
+  [64, 32, 56],
+  [64, 32, 48],
+  [64, 32, 40],
+  [64, 32, 32],
+  [64, 40, 32],
+  [64, 48, 32],
+  [64, 56, 32],
+  [64, 64, 32],
+  [56, 64, 32],
+  [48, 64, 32],
+  [40, 64, 32],
+  [32, 64, 32],
+  [32, 64, 40],
+  [32, 64, 48],
+  [32, 64, 56],
+  [32, 64, 64],
+  [32, 56, 64],
+  [32, 48, 64],
+  [32, 40, 64],
   // 224-247: Marrones, piel, neutros
-  [44,28,28],[52,28,28],[60,28,28],[68,28,28],
-  [80,40,20],[100,60,20],[120,80,40],[140,100,60],
-  [160,120,80],[180,140,100],[200,160,120],[220,180,140],
-  [240,200,160],[255,220,180],[255,240,200],[255,255,220],
-  [180,100,60],[160,80,40],[140,60,20],[120,40,0],
-  [100,30,0],[80,20,0],[60,10,0],[40,5,0],
+  [44, 28, 28],
+  [52, 28, 28],
+  [60, 28, 28],
+  [68, 28, 28],
+  [80, 40, 20],
+  [100, 60, 20],
+  [120, 80, 40],
+  [140, 100, 60],
+  [160, 120, 80],
+  [180, 140, 100],
+  [200, 160, 120],
+  [220, 180, 140],
+  [240, 200, 160],
+  [255, 220, 180],
+  [255, 240, 200],
+  [255, 255, 220],
+  [180, 100, 60],
+  [160, 80, 40],
+  [140, 60, 20],
+  [120, 40, 0],
+  [100, 30, 0],
+  [80, 20, 0],
+  [60, 10, 0],
+  [40, 5, 0],
   // 248-255: Especiales
-  [255,128,0],[255,165,0],[255,200,0],[200,100,200],
-  [100,200,200],[200,200,100],[128,0,128],[0,128,128]
+  [255, 128, 0],
+  [255, 165, 0],
+  [255, 200, 0],
+  [200, 100, 200],
+  [100, 200, 200],
+  [200, 200, 100],
+  [128, 0, 128],
+  [0, 128, 128],
 ];
 
 // Devuelve el string CSS rgb() para un Ã­ndice de paleta
@@ -102,7 +295,7 @@ let backgroundLayer = {
   name: "Fondo",
   rectangles: [],
   visible: true,
-  isBackground: true
+  isBackground: true,
 };
 
 let frames = [];
@@ -110,16 +303,25 @@ let frameIdCounter = 0;
 let activeFrameId = null;
 let editingBackground = true;
 
-let drawingMode = "rect";   // "rect" | "single" | "stamp"
+let drawingMode = "rect"; // "rect" | "single" | "stamp"
 let drawingState = {
   isFirstClickFixed: false,
   startPoint: null,
   hoverPoint: null,
 };
 
-let selectedColorIndex = 15;  // Ã­ndice 0-255 en VGA_PALETTE (default: blanco)
+let selectedColorIndex = 15; // Ã­ndice 0-255 en VGA_PALETTE (default: blanco)
 let gridActive = true;
 let rectangleIdCounter = 0;
+
+const COSTOS_BYTES = {
+  PINTAR_PIXEL: 12,
+  DRAW_REGION: 25,
+  TEXTO: 15,
+  CURSOR: 10,
+};
+const LIMITE_MEMORIA_BYTES = 400 * 1024;
+let memoriaConsumida = 0;
 
 let onionSkinEnabled = true;
 let onionSkinLayers = 3;
@@ -133,30 +335,30 @@ let canvasTooltip = null;
 // ==========================================
 // ELEMENTOS DEL DOM
 // ==========================================
-const canvas   = document.getElementById("pixel-canvas");
-const ctx      = canvas.getContext("2d");
-const canvasOverlay    = document.getElementById("canvas-overlay");
-const hoverCoordsEl    = document.getElementById("coords-hover");
+const canvas = document.getElementById("pixel-canvas");
+const ctx = canvas.getContext("2d");
+const canvasOverlay = document.getElementById("canvas-overlay");
+const hoverCoordsEl = document.getElementById("coords-hover");
 const paletteContainer = document.getElementById("color-palette");
-const selectedColorCircle  = document.getElementById("color-preview-circle");
+const selectedColorCircle = document.getElementById("color-preview-circle");
 const selectedColorIndexText = document.getElementById("color-index-text");
-const historyList   = document.getElementById("history-list");
+const historyList = document.getElementById("history-list");
 const rectCountBadge = document.getElementById("rect-count");
-const templatesList  = document.getElementById("templates-list");
-const framesList     = document.getElementById("frames-list");
+const templatesList = document.getElementById("templates-list");
+const framesList = document.getElementById("frames-list");
 const activeLayerLabel = document.getElementById("active-layer-label");
 
-const btnToggleGrid    = document.getElementById("btn-toggle-grid");
-const btnClear         = document.getElementById("btn-clear");
-const btnExport        = document.getElementById("btn-export");
-const btnModeRect      = document.getElementById("btn-mode-rect");
-const btnModeSingle    = document.getElementById("btn-mode-single");
-const btnModeStamp     = document.getElementById("btn-mode-stamp");
+const btnToggleGrid = document.getElementById("btn-toggle-grid");
+const btnClear = document.getElementById("btn-clear");
+const btnExport = document.getElementById("btn-export");
+const btnModeRect = document.getElementById("btn-mode-rect");
+const btnModeSingle = document.getElementById("btn-mode-single");
+const btnModeStamp = document.getElementById("btn-mode-stamp");
 const btnCreateTemplate = document.getElementById("btn-create-template");
-const btnAddFrame      = document.getElementById("btn-add-frame");
-const btnCloneFrame    = document.getElementById("btn-clone-frame");
+const btnAddFrame = document.getElementById("btn-add-frame");
+const btnCloneFrame = document.getElementById("btn-clone-frame");
 const btnEditBackground = document.getElementById("btn-edit-background");
-const btnToggleOnion   = document.getElementById("btn-toggle-onion");
+const btnToggleOnion = document.getElementById("btn-toggle-onion");
 
 // ==========================================
 // INICIALIZACIÃ“N
@@ -173,6 +375,7 @@ function init() {
   updateTemplatesUI();
   updateFramesUI();
   updateHistoryUI();
+  renderizarUI();
   draw();
 }
 
@@ -203,7 +406,9 @@ function renderPalette() {
     swatch.dataset.index = index;
     if (index === selectedColorIndex) swatch.classList.add("active");
     swatch.addEventListener("click", () => {
-      document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+      document
+        .querySelectorAll(".color-swatch")
+        .forEach((s) => s.classList.remove("active"));
       swatch.classList.add("active");
       selectedColorIndex = index;
       updateSelectedColorUI();
@@ -218,6 +423,50 @@ function updateSelectedColorUI() {
   selectedColorIndexText.textContent = `Idx: ${selectedColorIndex} | rgb(${r},${g},${b})`;
 }
 
+function getTipoInstruccion(rect) {
+  if (!rect) return null;
+  if (rect.type === "pixel") return "PINTAR_PIXEL";
+  if (rect.type === "rect") return "DRAW_REGION";
+  if (typeof rect.type === "string") return rect.type.toUpperCase();
+  return null;
+}
+
+function getCostoInstruccion(tipo) {
+  return COSTOS_BYTES[tipo] || 0;
+}
+
+function renderizarUI() {
+  const bar = document.getElementById("memory-bar");
+  const text = document.getElementById("memory-text");
+  const percentage = (memoriaConsumida / LIMITE_MEMORIA_BYTES) * 100;
+
+  if (bar) {
+    bar.style.width = `${Math.min(percentage, 100)}%`;
+    bar.style.backgroundColor = percentage > 90 ? "#dc3545" : "#28a745";
+  }
+
+  if (text) {
+    text.textContent = `${(memoriaConsumida / 1024).toFixed(1)} KB / 400 KB`;
+  }
+}
+
+function agregarInstruccion(tipo) {
+  memoriaConsumida = Math.max(0, memoriaConsumida + getCostoInstruccion(tipo));
+  renderizarUI();
+}
+
+function eliminarInstruccion(tipo) {
+  memoriaConsumida = Math.max(0, memoriaConsumida - getCostoInstruccion(tipo));
+  renderizarUI();
+}
+
+function sincronizarMemoriaDesdeHistorial(rects) {
+  memoriaConsumida = (rects || []).reduce((total, rect) => {
+    return total + getCostoInstruccion(getTipoInstruccion(rect));
+  }, 0);
+  renderizarUI();
+}
+
 // ==========================================
 // COORDENADAS LÃ“GICAS
 // ==========================================
@@ -228,8 +477,8 @@ function getLogicalCoords(e) {
   const clientX = e.clientX || (e.touches && e.touches[0].clientX);
   const clientY = e.clientY || (e.touches && e.touches[0].clientY);
   let x = Math.floor((clientX - rect.left) * scaleX);
-  let y = Math.floor((clientY - rect.top)  * scaleY);
-  x = Math.max(0, Math.min(x, canvas.width  - 1));
+  let y = Math.floor((clientY - rect.top) * scaleY);
+  x = Math.max(0, Math.min(x, canvas.width - 1));
   y = Math.max(0, Math.min(y, canvas.height - 1));
   return { x, y };
 }
@@ -238,19 +487,33 @@ function getLogicalCoords(e) {
 // EVENTOS
 // ==========================================
 function setupEventListeners() {
-  canvas.addEventListener("mousemove",  handlePointerMove);
-  canvas.addEventListener("mousedown",  handlePointerDown);
+  canvas.addEventListener("mousemove", handlePointerMove);
+  canvas.addEventListener("mousedown", handlePointerDown);
   canvas.addEventListener("mouseleave", handlePointerLeave);
-  canvas.addEventListener("touchmove",  e => { e.preventDefault(); handlePointerMove(e); }, { passive: false });
-  canvas.addEventListener("touchstart", e => { e.preventDefault(); handlePointerDown(e); }, { passive: false });
+  canvas.addEventListener(
+    "touchmove",
+    (e) => {
+      e.preventDefault();
+      handlePointerMove(e);
+    },
+    { passive: false },
+  );
+  canvas.addEventListener(
+    "touchstart",
+    (e) => {
+      e.preventDefault();
+      handlePointerDown(e);
+    },
+    { passive: false },
+  );
 
   btnToggleGrid.addEventListener("click", toggleGrid);
   btnClear.addEventListener("click", clearCanvas);
   btnExport.addEventListener("click", exportASM);
 
-  btnModeRect.addEventListener("click",   () => setDrawingMode("rect"));
+  btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
   btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
-  btnModeStamp.addEventListener("click",  () => setDrawingMode("stamp"));
+  btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
   btnCreateTemplate.addEventListener("click", createTemplateFromCurrentDrawing);
 
   btnAddFrame.addEventListener("click", () => {
@@ -271,12 +534,16 @@ function setDrawingMode(mode) {
   drawingState.startPoint = null;
   drawingState.hoverPoint = null;
 
-  [btnModeRect, btnModeSingle, btnModeStamp].forEach(b => {
+  [btnModeRect, btnModeSingle, btnModeStamp].forEach((b) => {
     b.classList.remove("btn-primary", "active");
     b.classList.add("btn-secondary");
   });
 
-  const targets = { rect: btnModeRect, single: btnModeSingle, stamp: btnModeStamp };
+  const targets = {
+    rect: btnModeRect,
+    single: btnModeSingle,
+    stamp: btnModeStamp,
+  };
   targets[mode].classList.remove("btn-secondary");
   targets[mode].classList.add("btn-primary", "active");
 
@@ -295,14 +562,21 @@ function handlePointerMove(e) {
   drawingState.hoverPoint = coords;
 
   let hoveredInfo = null;
-  const currentFrameIndex = editingBackground ? -1 : frames.findIndex(f => f.id === activeFrameId);
+  const currentFrameIndex = editingBackground
+    ? -1
+    : frames.findIndex((f) => f.id === activeFrameId);
   const visibleIndices = getVisibleFrameIndices();
 
   // Buscar en fondo
-  const bgRect = backgroundLayer.rectangles.find(r => isPointInRect(coords, r));
+  const bgRect = backgroundLayer.rectangles.find((r) =>
+    isPointInRect(coords, r),
+  );
   if (bgRect) {
     const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
-    hoveredInfo = { label: `ðŸŒ„ Fondo | idx:${bgRect.colorIndex}`, color: `rgb(${r},${g},${b})` };
+    hoveredInfo = {
+      label: `ðŸŒ„ Fondo | idx:${bgRect.colorIndex}`,
+      color: `rgb(${r},${g},${b})`,
+    };
   }
 
   // Buscar en frames visibles (el mÃ¡s reciente tiene prioridad)
@@ -310,16 +584,19 @@ function handlePointerMove(e) {
     const fi = visibleIndices[i];
     const frame = frames[fi];
     if (!frame || !frame.visible) continue;
-    const found = frame.rectangles.find(r => isPointInRect(coords, r));
+    const found = frame.rectangles.find((r) => isPointInRect(coords, r));
     if (found) {
       const [r, g, b] = VGA_PALETTE[found.colorIndex];
-      hoveredInfo = { label: `ðŸ“½ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`, color: `rgb(${r},${g},${b})` };
+      hoveredInfo = {
+        label: `ðŸ“½ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`,
+        color: `rgb(${r},${g},${b})`,
+      };
       break;
     }
   }
 
   if (hoveredInfo) showCanvasTooltip(e.clientX, e.clientY, hoveredInfo);
-  else             hideCanvasTooltip();
+  else hideCanvasTooltip();
 
   hoverCoordsEl.textContent = `X:${coords.x}  Y:${coords.y}${hoveredInfo ? "  |  " + hoveredInfo.label : ""}`;
   draw();
@@ -336,8 +613,8 @@ function showCanvasTooltip(cx, cy, info) {
   if (!canvasTooltip) return;
   canvasTooltip.innerHTML = `<span style="color:#a5b4fc">${info.label}</span> <span style="display:inline-block;width:10px;height:10px;background:${info.color};border-radius:2px;vertical-align:middle;margin-left:4px;border:1px solid rgba(255,255,255,0.2)"></span>`;
   canvasTooltip.style.display = "block";
-  canvasTooltip.style.left = (cx + 16) + "px";
-  canvasTooltip.style.top  = (cy - 10) + "px";
+  canvasTooltip.style.left = cx + 16 + "px";
+  canvasTooltip.style.top = cy - 10 + "px";
 }
 
 function hideCanvasTooltip() {
@@ -345,9 +622,13 @@ function hideCanvasTooltip() {
 }
 
 function isPointInRect(point, rect) {
-  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
-  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
-  return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+  const minX = Math.min(rect.x1, rect.x2),
+    maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2),
+    maxY = Math.max(rect.y1, rect.y2);
+  return (
+    point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+  );
 }
 
 // ==========================================
@@ -355,11 +636,15 @@ function isPointInRect(point, rect) {
 // ==========================================
 function getVisibleFrameIndices() {
   const currentIndex = editingBackground
-    ? (frames.length - 1)
-    : frames.findIndex(f => f.id === activeFrameId);
+    ? frames.length - 1
+    : frames.findIndex((f) => f.id === activeFrameId);
   const indices = [];
   if (onionSkinEnabled) {
-    for (let i = Math.max(0, currentIndex - onionSkinLayers); i < currentIndex; i++) {
+    for (
+      let i = Math.max(0, currentIndex - onionSkinLayers);
+      i < currentIndex;
+      i++
+    ) {
       if (frames[i] && frames[i].visible) indices.push(i);
     }
   }
@@ -371,18 +656,20 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const currentFrameIndex = editingBackground
-    ? (frames.length > 0 ? frames.length - 1 : -1)
-    : frames.findIndex(f => f.id === activeFrameId);
+    ? frames.length > 0
+      ? frames.length - 1
+      : -1
+    : frames.findIndex((f) => f.id === activeFrameId);
 
   // 1. Fondo siempre al 100%
   if (backgroundLayer.visible) {
     ctx.globalAlpha = 1.0;
-    backgroundLayer.rectangles.forEach(rect => drawRect(rect));
+    backgroundLayer.rectangles.forEach((rect) => drawRect(rect));
   }
 
   // 2. Frames con onion skinning
   const visibleIndices = getVisibleFrameIndices();
-  visibleIndices.forEach(fi => {
+  visibleIndices.forEach((fi) => {
     const frame = frames[fi];
     if (!frame || !frame.visible) return;
     const isCurrentFrame = fi === currentFrameIndex;
@@ -390,21 +677,24 @@ function draw() {
 
     if (isCurrentFrame) {
       ctx.globalAlpha = 1.0;
-      frame.rectangles.forEach(rect => drawRect(rect));
+      frame.rectangles.forEach((rect) => drawRect(rect));
     } else {
-      const opacitySteps = [0.35, 0.20, 0.10, 0.05];
-      ctx.globalAlpha = opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
-      frame.rectangles.forEach(rect => {
+      const opacitySteps = [0.35, 0.2, 0.1, 0.05];
+      ctx.globalAlpha =
+        opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      frame.rectangles.forEach((rect) => {
         // Tinte azul para onion skin
         const [r, g, b] = VGA_PALETTE[rect.colorIndex];
         const mix = Math.min(0.5, distance * 0.2);
-        const nr = Math.round(r * (1-mix) + 60*mix);
-        const ng = Math.round(g * (1-mix) + 80*mix);
-        const nb = Math.round(b * (1-mix) + 200*mix);
+        const nr = Math.round(r * (1 - mix) + 60 * mix);
+        const ng = Math.round(g * (1 - mix) + 80 * mix);
+        const nb = Math.round(b * (1 - mix) + 200 * mix);
         ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
-        const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
-        const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
-        ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+        const minX = Math.min(rect.x1, rect.x2),
+          maxX = Math.max(rect.x1, rect.x2);
+        const minY = Math.min(rect.y1, rect.y2),
+          maxY = Math.max(rect.y1, rect.y2);
+        ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
       });
     }
   });
@@ -415,9 +705,11 @@ function draw() {
 
 function drawRect(rect) {
   ctx.fillStyle = vgaColor(rect.colorIndex);
-  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
-  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
-  ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+  const minX = Math.min(rect.x1, rect.x2),
+    maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2),
+    maxY = Math.max(rect.y1, rect.y2);
+  ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
 }
 
 function drawPreview() {
@@ -429,90 +721,122 @@ function drawPreview() {
     ctx.globalAlpha = 0.6;
     ctx.fillRect(hp.x, hp.y, 1, 1);
     ctx.globalAlpha = 1.0;
-
   } else if (drawingMode === "stamp" && selectedTemplateId !== null) {
-    const tmpl = templates.find(t => t.id === selectedTemplateId);
+    const tmpl = templates.find((t) => t.id === selectedTemplateId);
     if (tmpl) {
       ctx.globalAlpha = 0.5;
-      tmpl.rects.forEach(r => {
+      tmpl.rects.forEach((r) => {
         ctx.fillStyle = vgaColor(r.colorIndex);
-        const x1 = clamp(r.x1 + hp.x, 0, canvas.width-1);
-        const y1 = clamp(r.y1 + hp.y, 0, canvas.height-1);
-        const x2 = clamp(r.x2 + hp.x, 0, canvas.width-1);
-        const y2 = clamp(r.y2 + hp.y, 0, canvas.height-1);
-        const mnX = Math.min(x1,x2), mxX = Math.max(x1,x2);
-        const mnY = Math.min(y1,y2), mxY = Math.max(y1,y2);
-        ctx.fillRect(mnX, mnY, (mxX-mnX)+1, (mxY-mnY)+1);
+        const x1 = clamp(r.x1 + hp.x, 0, canvas.width - 1);
+        const y1 = clamp(r.y1 + hp.y, 0, canvas.height - 1);
+        const x2 = clamp(r.x2 + hp.x, 0, canvas.width - 1);
+        const y2 = clamp(r.y2 + hp.y, 0, canvas.height - 1);
+        const mnX = Math.min(x1, x2),
+          mxX = Math.max(x1, x2);
+        const mnY = Math.min(y1, y2),
+          mxY = Math.max(y1, y2);
+        ctx.fillRect(mnX, mnY, mxX - mnX + 1, mxY - mnY + 1);
       });
       ctx.globalAlpha = 1.0;
       // Bounding box
-      const bounds = tmpl.rects.reduce((a,r) => ({
-        minX: Math.min(a.minX,r.x1,r.x2), maxX: Math.max(a.maxX,r.x1,r.x2),
-        minY: Math.min(a.minY,r.y1,r.y2), maxY: Math.max(a.maxY,r.y1,r.y2)
-      }), { minX:Infinity, maxX:-Infinity, minY:Infinity, maxY:-Infinity });
+      const bounds = tmpl.rects.reduce(
+        (a, r) => ({
+          minX: Math.min(a.minX, r.x1, r.x2),
+          maxX: Math.max(a.maxX, r.x1, r.x2),
+          minY: Math.min(a.minY, r.y1, r.y2),
+          maxY: Math.max(a.maxY, r.y1, r.y2),
+        }),
+        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+      );
       if (bounds.minX !== Infinity) {
-        ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
-        const bx = clamp(bounds.minX+hp.x,0,canvas.width-1);
-        const by = clamp(bounds.minY+hp.y,0,canvas.height-1);
-        ctx.strokeRect(bx-.5, by-.5, bounds.maxX-bounds.minX+2, bounds.maxY-bounds.minY+2);
+        ctx.strokeStyle = "#a855f7";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        const bx = clamp(bounds.minX + hp.x, 0, canvas.width - 1);
+        const by = clamp(bounds.minY + hp.y, 0, canvas.height - 1);
+        ctx.strokeRect(
+          bx - 0.5,
+          by - 0.5,
+          bounds.maxX - bounds.minX + 2,
+          bounds.maxY - bounds.minY + 2,
+        );
         ctx.setLineDash([]);
       }
     }
-
-  } else if (drawingMode === "rect" && drawingState.isFirstClickFixed && drawingState.startPoint) {
+  } else if (
+    drawingMode === "rect" &&
+    drawingState.isFirstClickFixed &&
+    drawingState.startPoint
+  ) {
     ctx.fillStyle = vgaColor(selectedColorIndex);
     ctx.globalAlpha = 0.55;
     const minX = Math.min(drawingState.startPoint.x, hp.x);
     const maxX = Math.max(drawingState.startPoint.x, hp.x);
     const minY = Math.min(drawingState.startPoint.y, hp.y);
     const maxY = Math.max(drawingState.startPoint.y, hp.y);
-    ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+    ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
     ctx.globalAlpha = 1.0;
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
-    ctx.strokeRect(minX-.5, minY-.5, (maxX-minX)+2, (maxY-minY)+2);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 2]);
+    ctx.strokeRect(minX - 0.5, minY - 0.5, maxX - minX + 2, maxY - minY + 2);
     ctx.setLineDash([]);
   }
 }
 
-function clamp(v, mn, mx) { return Math.max(mn, Math.min(v, mx)); }
+function clamp(v, mn, mx) {
+  return Math.max(mn, Math.min(v, mx));
+}
 
 // ==========================================
 // EVENTOS DE DIBUJO
 // ==========================================
 function handlePointerDown(e) {
   const coords = getLogicalCoords(e);
-  const layer  = getActiveEditingLayer();
+  const layer = getActiveEditingLayer();
   if (!layer) return;
 
   if (drawingMode === "stamp") {
-    if (selectedTemplateId === null) { alert("Selecciona una plantilla primero."); return; }
-    const tmpl = templates.find(t => t.id === selectedTemplateId);
+    if (selectedTemplateId === null) {
+      alert("Selecciona una plantilla primero.");
+      return;
+    }
+    const tmpl = templates.find((t) => t.id === selectedTemplateId);
     if (!tmpl) return;
-    tmpl.rects.forEach(r => {
+    tmpl.rects.forEach((r) => {
+      const tipo = getTipoInstruccion(r) || "DRAW_REGION";
       layer.rectangles.push({
-        id: ++rectangleIdCounter, type: r.type,
-        x1: clamp(r.x1+coords.x, 0, canvas.width-1),
-        y1: clamp(r.y1+coords.y, 0, canvas.height-1),
-        x2: clamp(r.x2+coords.x, 0, canvas.width-1),
-        y2: clamp(r.y2+coords.y, 0, canvas.height-1),
-        colorIndex: r.colorIndex
+        id: ++rectangleIdCounter,
+        type: r.type,
+        x1: clamp(r.x1 + coords.x, 0, canvas.width - 1),
+        y1: clamp(r.y1 + coords.y, 0, canvas.height - 1),
+        x2: clamp(r.x2 + coords.x, 0, canvas.width - 1),
+        y2: clamp(r.y2 + coords.y, 0, canvas.height - 1),
+        colorIndex: r.colorIndex,
       });
+      agregarInstruccion(tipo);
     });
     optimizeRectangles(layer);
-    draw(); updateHistoryUI(); updateFramesUI();
-
+    draw();
+    updateHistoryUI();
+    updateFramesUI();
   } else if (drawingMode === "single") {
+    agregarInstruccion("PINTAR_PIXEL");
     layer.rectangles.push({
-      id: ++rectangleIdCounter, type: "pixel",
-      x1: coords.x, y1: coords.y,
-      x2: coords.x, y2: coords.y,
-      colorIndex: selectedColorIndex
+      id: ++rectangleIdCounter,
+      type: "pixel",
+      x1: coords.x,
+      y1: coords.y,
+      x2: coords.x,
+      y2: coords.y,
+      colorIndex: selectedColorIndex,
     });
     optimizeRectangles(layer);
     drawingState.isFirstClickFixed = false;
     drawingState.startPoint = null;
-    draw(); updateHistoryUI(); updateFramesUI();
-
+    draw();
+    updateHistoryUI();
+    updateFramesUI();
   } else {
     // rect: 2 clics
     if (!drawingState.isFirstClickFixed) {
@@ -522,16 +846,22 @@ function handlePointerDown(e) {
       draw();
     } else {
       layer.rectangles.push({
-        id: ++rectangleIdCounter, type: "rect",
-        x1: drawingState.startPoint.x, y1: drawingState.startPoint.y,
-        x2: coords.x, y2: coords.y,
-        colorIndex: selectedColorIndex
+        id: ++rectangleIdCounter,
+        type: "rect",
+        x1: drawingState.startPoint.x,
+        y1: drawingState.startPoint.y,
+        x2: coords.x,
+        y2: coords.y,
+        colorIndex: selectedColorIndex,
       });
+      agregarInstruccion("DRAW_REGION");
       optimizeRectangles(layer);
       drawingState.isFirstClickFixed = false;
       drawingState.startPoint = null;
       drawingState.hoverPoint = null;
-      draw(); updateHistoryUI(); updateFramesUI();
+      draw();
+      updateHistoryUI();
+      updateFramesUI();
     }
   }
 }
@@ -542,14 +872,18 @@ function handlePointerDown(e) {
 function optimizeRectangles(layer) {
   if (!layer || layer.rectangles.length < 2) return;
   const rects = layer.rectangles;
-  const last  = rects[rects.length - 1];
-  const nMinX = Math.min(last.x1, last.x2), nMaxX = Math.max(last.x1, last.x2);
-  const nMinY = Math.min(last.y1, last.y2), nMaxY = Math.max(last.y1, last.y2);
+  const last = rects[rects.length - 1];
+  const nMinX = Math.min(last.x1, last.x2),
+    nMaxX = Math.max(last.x1, last.x2);
+  const nMinY = Math.min(last.y1, last.y2),
+    nMaxY = Math.max(last.y1, last.y2);
   for (let i = rects.length - 2; i >= 0; i--) {
     const p = rects[i];
-    const pMinX = Math.min(p.x1,p.x2), pMaxX = Math.max(p.x1,p.x2);
-    const pMinY = Math.min(p.y1,p.y2), pMaxY = Math.max(p.y1,p.y2);
-    if (nMinX<=pMinX && nMaxX>=pMaxX && nMinY<=pMinY && nMaxY>=pMaxY)
+    const pMinX = Math.min(p.x1, p.x2),
+      pMaxX = Math.max(p.x1, p.x2);
+    const pMinY = Math.min(p.y1, p.y2),
+      pMaxY = Math.max(p.y1, p.y2);
+    if (nMinX <= pMinX && nMaxX >= pMaxX && nMinY <= pMinY && nMaxY >= pMaxY)
       rects.splice(i, 1);
   }
 }
@@ -559,55 +893,83 @@ function optimizeRectangles(layer) {
 // ==========================================
 function getActiveEditingLayer() {
   if (editingBackground) return backgroundLayer;
-  return frames.find(f => f.id === activeFrameId) || null;
+  return frames.find((f) => f.id === activeFrameId) || null;
 }
 
 function getActiveFrame() {
-  return frames.find(f => f.id === activeFrameId) || null;
+  return frames.find((f) => f.id === activeFrameId) || null;
 }
 
 function addFrame(name) {
-  const f = { id: ++frameIdCounter, name: name || `Frame ${frameIdCounter}`, rectangles: [], visible: true };
+  const f = {
+    id: ++frameIdCounter,
+    name: name || `Frame ${frameIdCounter}`,
+    rectangles: [],
+    visible: true,
+  };
   frames.push(f);
   return f;
 }
 
 function switchToFrame(fId) {
-  activeFrameId = fId; editingBackground = false;
-  updateActiveLayerLabel(); updateFramesUI(); updateHistoryUI(); draw();
+  activeFrameId = fId;
+  editingBackground = false;
+  updateActiveLayerLabel();
+  updateFramesUI();
+  updateHistoryUI();
+  draw();
 }
 
 function switchToBackground() {
-  editingBackground = true; activeFrameId = null;
-  updateActiveLayerLabel(); updateFramesUI(); updateHistoryUI(); draw();
+  editingBackground = true;
+  activeFrameId = null;
+  updateActiveLayerLabel();
+  updateFramesUI();
+  updateHistoryUI();
+  draw();
 }
 
 function cloneActiveFrame() {
-  if (editingBackground) { alert("Selecciona un Frame para clonar."); return; }
-  const af = getActiveFrame(); if (!af) return;
+  if (editingBackground) {
+    alert("Selecciona un Frame para clonar.");
+    return;
+  }
+  const af = getActiveFrame();
+  if (!af) return;
   const newF = {
-    id: ++frameIdCounter, name: `${af.name} (Copia)`,
-    rectangles: af.rectangles.map(r => ({...r, id: ++rectangleIdCounter})),
-    visible: true
+    id: ++frameIdCounter,
+    name: `${af.name} (Copia)`,
+    rectangles: af.rectangles.map((r) => ({ ...r, id: ++rectangleIdCounter })),
+    visible: true,
   };
   frames.push(newF);
   switchToFrame(newF.id);
 }
 
 function deleteFrameById(id) {
-  if (frames.length <= 1) { alert("Debe haber al menos un frame."); return; }
-  const f = frames.find(f => f.id === id);
+  if (frames.length <= 1) {
+    alert("Debe haber al menos un frame.");
+    return;
+  }
+  const f = frames.find((f) => f.id === id);
   if (!f) return;
   if (confirm(`Â¿Eliminar "${f.name}"?`)) {
-    frames = frames.filter(f => f.id !== id);
-    if (activeFrameId === id) switchToFrame(frames[frames.length-1].id);
-    else { updateFramesUI(); draw(); }
+    frames = frames.filter((f) => f.id !== id);
+    if (activeFrameId === id) switchToFrame(frames[frames.length - 1].id);
+    else {
+      updateFramesUI();
+      draw();
+    }
   }
 }
 
 function toggleFrameVisibility(id) {
-  const f = frames.find(f => f.id === id);
-  if (f) { f.visible = !f.visible; updateFramesUI(); draw(); }
+  const f = frames.find((f) => f.id === id);
+  if (f) {
+    f.visible = !f.visible;
+    updateFramesUI();
+    draw();
+  }
 }
 
 // ==========================================
@@ -616,11 +978,12 @@ function toggleFrameVisibility(id) {
 function toggleOnionSkin() {
   onionSkinEnabled = !onionSkinEnabled;
   if (onionSkinEnabled) {
-    btnToggleOnion.classList.replace("btn-secondary","btn-primary");
+    btnToggleOnion.classList.replace("btn-secondary", "btn-primary");
     btnToggleOnion.innerHTML = '<span class="btn-icon">ðŸ§…</span> Cebolla: ON';
   } else {
-    btnToggleOnion.classList.replace("btn-primary","btn-secondary");
-    btnToggleOnion.innerHTML = '<span class="btn-icon">ðŸ§…</span> Cebolla: OFF';
+    btnToggleOnion.classList.replace("btn-primary", "btn-secondary");
+    btnToggleOnion.innerHTML =
+      '<span class="btn-icon">ðŸ§…</span> Cebolla: OFF';
   }
   draw();
 }
@@ -644,9 +1007,13 @@ function updateHistoryUI() {
   if (!historyList) return;
   historyList.innerHTML = "";
   const layer = getActiveEditingLayer();
-  if (!layer) { rectCountBadge.textContent = "0 Rects"; return; }
+  if (!layer) {
+    rectCountBadge.textContent = "0 Rects";
+    return;
+  }
   const rects = layer.rectangles;
-  rectCountBadge.textContent = `${rects.length} ${rects.length===1?"Rect":"Rects"}`;
+  rectCountBadge.textContent = `${rects.length} ${rects.length === 1 ? "Rect" : "Rects"}`;
+  sincronizarMemoriaDesdeHistorial(rects);
 
   if (rects.length === 0) {
     const e = document.createElement("li");
@@ -671,9 +1038,9 @@ function updateHistoryUI() {
     coordsSpan.className = "history-coords";
     const isPixel = rect.type === "pixel";
     if (isPixel) {
-      coordsSpan.innerHTML = `P${idx+1}: (${rect.x1}),(${rect.y1})`;
+      coordsSpan.innerHTML = `P${idx + 1}: (${rect.x1}),(${rect.y1})`;
     } else {
-      coordsSpan.innerHTML = `R${idx+1}: [${rect.x1},${rect.y1}]â†’[${rect.x2},${rect.y2}]`;
+      coordsSpan.innerHTML = `R${idx + 1}: [${rect.x1},${rect.y1}]â†’[${rect.x2},${rect.y2}]`;
     }
 
     const colorSpan = document.createElement("span");
@@ -688,10 +1055,13 @@ function updateHistoryUI() {
     del.className = "btn-delete-item";
     del.title = "Eliminar";
     del.innerHTML = "âŒ";
-    del.addEventListener("click", e => {
+    del.addEventListener("click", (e) => {
       e.stopPropagation();
-      layer.rectangles = layer.rectangles.filter(r => r.id !== rect.id);
-      draw(); updateHistoryUI(); updateFramesUI();
+      eliminarInstruccion(getTipoInstruccion(rect));
+      layer.rectangles = layer.rectangles.filter((r) => r.id !== rect.id);
+      draw();
+      updateHistoryUI();
+      updateFramesUI();
     });
 
     item.appendChild(details);
@@ -706,63 +1076,97 @@ function updateFramesUI() {
 
   // Item de Fondo
   const bgItem = document.createElement("li");
-  bgItem.className = "layer-item frame-bg-item" + (editingBackground ? " active" : "");
+  bgItem.className =
+    "layer-item frame-bg-item" + (editingBackground ? " active" : "");
   bgItem.title = "Capa de Fondo â€” aparece en todos los frames";
   bgItem.addEventListener("click", () => switchToBackground());
 
-  const bgLeft = document.createElement("div"); bgLeft.className = "layer-item-left";
-  const bgVis  = document.createElement("button"); bgVis.className = "btn-layer-visibility";
+  const bgLeft = document.createElement("div");
+  bgLeft.className = "layer-item-left";
+  const bgVis = document.createElement("button");
+  bgVis.className = "btn-layer-visibility";
   bgVis.innerHTML = backgroundLayer.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
-  bgVis.addEventListener("click", e => {
+  bgVis.addEventListener("click", (e) => {
     e.stopPropagation();
     backgroundLayer.visible = !backgroundLayer.visible;
-    updateFramesUI(); draw();
+    updateFramesUI();
+    draw();
   });
-  const bgLabel = document.createElement("span"); bgLabel.className = "layer-name-display bg-label";
+  const bgLabel = document.createElement("span");
+  bgLabel.className = "layer-name-display bg-label";
   bgLabel.innerHTML = `ðŸŒ„ Fondo <small class="badge-persistent">[persistente]</small>`;
-  bgLeft.appendChild(bgVis); bgLeft.appendChild(bgLabel);
+  bgLeft.appendChild(bgVis);
+  bgLeft.appendChild(bgLabel);
 
-  const bgRight = document.createElement("div"); bgRight.className = "layer-item-right";
-  const bgCount = document.createElement("span"); bgCount.className = "layer-rect-count";
+  const bgRight = document.createElement("div");
+  bgRight.className = "layer-item-right";
+  const bgCount = document.createElement("span");
+  bgCount.className = "layer-rect-count";
   bgCount.textContent = `${backgroundLayer.rectangles.length}r`;
   bgRight.appendChild(bgCount);
 
-  bgItem.appendChild(bgLeft); bgItem.appendChild(bgRight);
+  bgItem.appendChild(bgLeft);
+  bgItem.appendChild(bgRight);
   framesList.appendChild(bgItem);
 
   // Separador
-  const sep = document.createElement("li"); sep.className = "frames-separator";
+  const sep = document.createElement("li");
+  sep.className = "frames-separator";
   sep.innerHTML = `â”€â”€ Frames (${frames.length}) â”€â”€`;
   framesList.appendChild(sep);
 
   // Frames (mÃ¡s reciente arriba)
   [...frames].reverse().forEach((frame, ri) => {
     const item = document.createElement("li");
-    item.className = "layer-item" + ((!editingBackground && activeFrameId===frame.id) ? " active" : "");
+    item.className =
+      "layer-item" +
+      (!editingBackground && activeFrameId === frame.id ? " active" : "");
     item.addEventListener("click", () => switchToFrame(frame.id));
 
-    const left = document.createElement("div"); left.className = "layer-item-left";
-    const visBtn = document.createElement("button"); visBtn.className = "btn-layer-visibility";
+    const left = document.createElement("div");
+    left.className = "layer-item-left";
+    const visBtn = document.createElement("button");
+    visBtn.className = "btn-layer-visibility";
     visBtn.innerHTML = frame.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
-    visBtn.addEventListener("click", e => { e.stopPropagation(); toggleFrameVisibility(frame.id); });
+    visBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFrameVisibility(frame.id);
+    });
 
     const nameInput = document.createElement("input");
-    nameInput.type = "text"; nameInput.className = "layer-name-input";
+    nameInput.type = "text";
+    nameInput.className = "layer-name-input";
     nameInput.value = frame.name;
-    nameInput.addEventListener("change", e => { frame.name=e.target.value; updateFramesUI(); updateActiveLayerLabel(); });
-    nameInput.addEventListener("click", e => { if(!editingBackground && activeFrameId===frame.id) e.stopPropagation(); });
+    nameInput.addEventListener("change", (e) => {
+      frame.name = e.target.value;
+      updateFramesUI();
+      updateActiveLayerLabel();
+    });
+    nameInput.addEventListener("click", (e) => {
+      if (!editingBackground && activeFrameId === frame.id) e.stopPropagation();
+    });
 
-    left.appendChild(visBtn); left.appendChild(nameInput);
+    left.appendChild(visBtn);
+    left.appendChild(nameInput);
 
-    const right = document.createElement("div"); right.className = "layer-item-right";
-    const cnt = document.createElement("span"); cnt.className = "layer-rect-count";
+    const right = document.createElement("div");
+    right.className = "layer-item-right";
+    const cnt = document.createElement("span");
+    cnt.className = "layer-rect-count";
     cnt.textContent = `${frame.rectangles.length}r`;
-    const del = document.createElement("button"); del.className = "btn-layer-control delete";
-    del.innerHTML = "ðŸ—‘ï¸"; del.title = "Eliminar frame";
-    del.addEventListener("click", e => { e.stopPropagation(); deleteFrameById(frame.id); });
+    const del = document.createElement("button");
+    del.className = "btn-layer-control delete";
+    del.innerHTML = "ðŸ—‘ï¸";
+    del.title = "Eliminar frame";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteFrameById(frame.id);
+    });
 
-    right.appendChild(cnt); right.appendChild(del);
-    item.appendChild(left); item.appendChild(right);
+    right.appendChild(cnt);
+    right.appendChild(del);
+    item.appendChild(left);
+    item.appendChild(right);
     framesList.appendChild(item);
   });
 
@@ -776,22 +1180,29 @@ function toggleGrid() {
   gridActive = !gridActive;
   if (gridActive) {
     canvasOverlay.classList.add("grid-active");
-    btnToggleGrid.innerHTML = '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON';
-    btnToggleGrid.classList.replace("btn-secondary","btn-primary");
+    btnToggleGrid.innerHTML =
+      '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON';
+    btnToggleGrid.classList.replace("btn-secondary", "btn-primary");
   } else {
     canvasOverlay.classList.remove("grid-active");
-    btnToggleGrid.innerHTML = '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: OFF';
-    btnToggleGrid.classList.replace("btn-primary","btn-secondary");
+    btnToggleGrid.innerHTML =
+      '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: OFF';
+    btnToggleGrid.classList.replace("btn-primary", "btn-secondary");
   }
 }
 
 function clearCanvas() {
   const layer = getActiveEditingLayer();
-  if (!layer || layer.rectangles.length===0) return;
-  const name = editingBackground ? "Fondo" : (getActiveFrame()?.name || "");
+  if (!layer || layer.rectangles.length === 0) return;
+  const name = editingBackground ? "Fondo" : getActiveFrame()?.name || "";
   if (confirm(`Â¿Limpiar todos los elementos de "${name}"?`)) {
+    layer.rectangles.forEach((rect) =>
+      eliminarInstruccion(getTipoInstruccion(rect)),
+    );
     layer.rectangles = [];
-    draw(); updateHistoryUI(); updateFramesUI();
+    draw();
+    updateHistoryUI();
+    updateFramesUI();
   }
 }
 
@@ -814,7 +1225,7 @@ function colorToASMHex(colorIndex) {
  */
 function buildCommandsBlock(rects) {
   let commands = "";
-  rects.forEach(rect => {
+  rects.forEach((rect) => {
     if (rect.type === "pixel") {
       // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL)
       commands += `    PINTAR_PIXEL (${rect.x1}), (${rect.y1}), (${rect.colorIndex})\n`;
@@ -856,7 +1267,7 @@ function generateFondoASM(rects) {
     "fondo ENDP",
     "",
     "END fondo",
-    ""
+    "",
   ].join("\n");
 }
 
@@ -886,7 +1297,7 @@ function generateFrameASM(procName, rects) {
     `${procName} ENDP`,
     "",
     `END ${procName}`,
-    ""
+    "",
   ].join("\n");
 }
 
@@ -950,7 +1361,7 @@ function generateOrquestaASM(frameCount) {
     "",
     "PRIN ENDP",
     "END PRIN",
-    ""
+    "",
   ].join("\n");
 }
 
@@ -960,7 +1371,7 @@ function generateBuildBAT(frameCount) {
     "echo Compilando fondo.asm...",
     "tasm fondo.asm",
     "if errorlevel 1 goto error",
-    ""
+    "",
   ];
 
   for (let i = 1; i <= frameCount; i++) {
@@ -968,7 +1379,7 @@ function generateBuildBAT(frameCount) {
       `echo Compilando F${i}.asm...`,
       `tasm F${i}.asm`,
       "if errorlevel 1 goto error",
-      ""
+      "",
     );
   }
 
@@ -989,7 +1400,7 @@ function generateBuildBAT(frameCount) {
     "echo.",
     "echo Error al compilar o enlazar. Revisa los mensajes anteriores.",
     "",
-    ":end"
+    ":end",
   );
 
   return lines.join("\r\n") + "\r\n";
@@ -1002,9 +1413,13 @@ function generateLinkResponse(frameCount) {
     objects.push(`F${i}.obj`);
   }
 
-  return objects
-    .map((objectName, index) => index < objects.length - 1 ? `${objectName}+` : objectName)
-    .join("\r\n") + "\r\n";
+  return (
+    objects
+      .map((objectName, index) =>
+        index < objects.length - 1 ? `${objectName}+` : objectName,
+      )
+      .join("\r\n") + "\r\n"
+  );
 }
 /**
  * Exporta todos los archivos .asm en un ZIP:
@@ -1052,9 +1467,9 @@ async function exportASM() {
 }
 
 function downloadBlob(blob, filename) {
-  const url  = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href  = url;
+  link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
@@ -1075,58 +1490,97 @@ function updateTemplatesUI() {
     templatesList.appendChild(e);
     return;
   }
-  templates.forEach(tmpl => {
+  templates.forEach((tmpl) => {
     const item = document.createElement("li");
-    item.className = "template-item" + (selectedTemplateId===tmpl.id?" active":"");
+    item.className =
+      "template-item" + (selectedTemplateId === tmpl.id ? " active" : "");
     item.addEventListener("click", () => {
       selectedTemplateId = tmpl.id;
       updateTemplatesUI();
-      if (drawingMode!=="stamp") setDrawingMode("stamp"); else draw();
+      if (drawingMode !== "stamp") setDrawingMode("stamp");
+      else draw();
     });
 
-    const det = document.createElement("div"); det.className = "template-item-details";
-    const nm  = document.createElement("span"); nm.className  = "template-name";  nm.textContent = tmpl.name;
-    const inf = document.createElement("span"); inf.className = "template-info";  inf.textContent = `${tmpl.rects.length} rects (${tmpl.width}Ã—${tmpl.height})`;
-    det.appendChild(nm); det.appendChild(inf);
+    const det = document.createElement("div");
+    det.className = "template-item-details";
+    const nm = document.createElement("span");
+    nm.className = "template-name";
+    nm.textContent = tmpl.name;
+    const inf = document.createElement("span");
+    inf.className = "template-info";
+    inf.textContent = `${tmpl.rects.length} rects (${tmpl.width}Ã—${tmpl.height})`;
+    det.appendChild(nm);
+    det.appendChild(inf);
 
-    const del = document.createElement("button"); del.className="btn-delete-template"; del.innerHTML="ðŸ—‘ï¸";
-    del.addEventListener("click", e => { e.stopPropagation(); deleteTemplateById(tmpl.id); });
+    const del = document.createElement("button");
+    del.className = "btn-delete-template";
+    del.innerHTML = "ðŸ—‘ï¸";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteTemplateById(tmpl.id);
+    });
 
-    item.appendChild(det); item.appendChild(del);
+    item.appendChild(det);
+    item.appendChild(del);
     templatesList.appendChild(item);
   });
 }
 
 function createTemplateFromCurrentDrawing() {
   const layer = getActiveEditingLayer();
-  if (!layer || layer.rectangles.length===0) { alert("Dibuja algo primero."); return; }
-  const name = prompt("Nombre de la plantilla:", `Sprite ${templates.length+1}`);
-  if (name===null) return;
+  if (!layer || layer.rectangles.length === 0) {
+    alert("Dibuja algo primero.");
+    return;
+  }
+  const name = prompt(
+    "Nombre de la plantilla:",
+    `Sprite ${templates.length + 1}`,
+  );
+  if (name === null) return;
 
-  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
-  layer.rectangles.forEach(r => {
-    const rMinX=Math.min(r.x1,r.x2), rMaxX=Math.max(r.x1,r.x2);
-    const rMinY=Math.min(r.y1,r.y2), rMaxY=Math.max(r.y1,r.y2);
-    if(rMinX<minX) minX=rMinX; if(rMaxX>maxX) maxX=rMaxX;
-    if(rMinY<minY) minY=rMinY; if(rMaxY>maxY) maxY=rMaxY;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+  layer.rectangles.forEach((r) => {
+    const rMinX = Math.min(r.x1, r.x2),
+      rMaxX = Math.max(r.x1, r.x2);
+    const rMinY = Math.min(r.y1, r.y2),
+      rMaxY = Math.max(r.y1, r.y2);
+    if (rMinX < minX) minX = rMinX;
+    if (rMaxX > maxX) maxX = rMaxX;
+    if (rMinY < minY) minY = rMinY;
+    if (rMaxY > maxY) maxY = rMaxY;
   });
 
-  const relRects = layer.rectangles.map(r => ({
-    x1:r.x1-minX, y1:r.y1-minY, x2:r.x2-minX, y2:r.y2-minY,
-    colorIndex: r.colorIndex, type: r.type
+  const relRects = layer.rectangles.map((r) => ({
+    x1: r.x1 - minX,
+    y1: r.y1 - minY,
+    x2: r.x2 - minX,
+    y2: r.y2 - minY,
+    colorIndex: r.colorIndex,
+    type: r.type,
   }));
 
-  const tmpl = { id:++templateIdCounter, name:name||`Sprite ${templateIdCounter}`,
-    rects:relRects, width:(maxX-minX)+1, height:(maxY-minY)+1 };
+  const tmpl = {
+    id: ++templateIdCounter,
+    name: name || `Sprite ${templateIdCounter}`,
+    rects: relRects,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
   templates.push(tmpl);
   selectedTemplateId = tmpl.id;
-  updateTemplatesUI(); setDrawingMode("stamp");
+  updateTemplatesUI();
+  setDrawingMode("stamp");
 }
 
 function deleteTemplateById(id) {
-  templates = templates.filter(t => t.id!==id);
-  if (selectedTemplateId===id) selectedTemplateId = templates.length>0 ? templates[0].id : null;
-  updateTemplatesUI(); draw();
+  templates = templates.filter((t) => t.id !== id);
+  if (selectedTemplateId === id)
+    selectedTemplateId = templates.length > 0 ? templates[0].id : null;
+  updateTemplatesUI();
+  draw();
 }
 
 // ==========================================
