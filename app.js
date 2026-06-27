@@ -1,0 +1,1135 @@
+﻿// ==========================================
+//  PIXEL ART ANIMATION TOOL - app.js
+//  Paleta VGA 256 colores (modo 13h)
+//  Exporta archivos .asm por capa + orquestador
+// ==========================================
+
+// ==========================================
+// PALETA VGA 256 COLORES (Ã­ndices 0-255)
+// Valores RGB para representaciÃ³n en canvas
+// ==========================================
+const VGA_PALETTE = [
+  // 0-15: Colores bÃ¡sicos EGA/VGA
+  [0,0,0],[0,0,168],[0,168,0],[0,168,168],
+  [168,0,0],[168,0,168],[168,84,0],[168,168,168],
+  [84,84,84],[84,84,252],[84,252,84],[84,252,252],
+  [252,84,84],[252,84,252],[252,252,84],[252,252,252],
+  // 16-31
+  [0,0,0],[20,20,20],[32,32,32],[44,44,44],
+  [56,56,56],[68,68,68],[80,80,80],[96,96,96],
+  [112,112,112],[128,128,128],[144,144,144],[160,160,160],
+  [180,180,180],[200,200,200],[224,224,224],[252,252,252],
+  // 32-55: Azules
+  [0,0,252],[64,0,252],[124,0,252],[188,0,252],
+  [252,0,252],[252,0,188],[252,0,124],[252,0,64],
+  [252,0,0],[252,64,0],[252,124,0],[252,188,0],
+  [252,252,0],[188,252,0],[124,252,0],[64,252,0],
+  [0,252,0],[0,252,64],[0,252,124],[0,252,188],
+  [0,252,252],[0,188,252],[0,124,252],[0,64,252],
+  // 56-79
+  [124,124,252],[156,124,252],[188,124,252],[220,124,252],
+  [252,124,252],[252,124,220],[252,124,188],[252,124,156],
+  [252,124,124],[252,156,124],[252,188,124],[252,220,124],
+  [252,252,124],[220,252,124],[188,252,124],[156,252,124],
+  [124,252,124],[124,252,156],[124,252,188],[124,252,220],
+  [124,252,252],[124,220,252],[124,188,252],[124,156,252],
+  // 80-103
+  [180,180,252],[196,180,252],[216,180,252],[232,180,252],
+  [252,180,252],[252,180,232],[252,180,216],[252,180,196],
+  [252,180,180],[252,196,180],[252,216,180],[252,232,180],
+  [252,252,180],[232,252,180],[216,252,180],[196,252,180],
+  [180,252,180],[180,252,196],[180,252,216],[180,252,232],
+  [180,252,252],[180,232,252],[180,216,252],[180,196,252],
+  // 104-127
+  [0,0,112],[28,0,112],[56,0,112],[84,0,112],
+  [112,0,112],[112,0,84],[112,0,56],[112,0,28],
+  [112,0,0],[112,28,0],[112,56,0],[112,84,0],
+  [112,112,0],[84,112,0],[56,112,0],[28,112,0],
+  [0,112,0],[0,112,28],[0,112,56],[0,112,84],
+  [0,112,112],[0,84,112],[0,56,112],[0,28,112],
+  // 128-151
+  [56,56,112],[68,56,112],[84,56,112],[96,56,112],
+  [112,56,112],[112,56,96],[112,56,84],[112,56,68],
+  [112,56,56],[112,68,56],[112,84,56],[112,96,56],
+  [112,112,56],[96,112,56],[84,112,56],[68,112,56],
+  [56,112,56],[56,112,68],[56,112,84],[56,112,96],
+  [56,112,112],[56,96,112],[56,84,112],[56,68,112],
+  // 152-175
+  [80,80,112],[88,80,112],[96,80,112],[104,80,112],
+  [112,80,112],[112,80,104],[112,80,96],[112,80,88],
+  [112,80,80],[112,88,80],[112,96,80],[112,104,80],
+  [112,112,80],[104,112,80],[96,112,80],[88,112,80],
+  [80,112,80],[80,112,88],[80,112,96],[80,112,104],
+  [80,112,112],[80,104,112],[80,96,112],[80,88,112],
+  // 176-199: Escala de grises adicional y colores tierra
+  [0,0,64],[16,0,64],[32,0,64],[48,0,64],
+  [64,0,64],[64,0,48],[64,0,32],[64,0,16],
+  [64,0,0],[64,16,0],[64,32,0],[64,48,0],
+  [64,64,0],[48,64,0],[32,64,0],[16,64,0],
+  [0,64,0],[0,64,16],[0,64,32],[0,64,48],
+  [0,64,64],[0,48,64],[0,32,64],[0,16,64],
+  // 200-223: Tonos pastel / piel
+  [32,32,64],[40,32,64],[48,32,64],[56,32,64],
+  [64,32,64],[64,32,56],[64,32,48],[64,32,40],
+  [64,32,32],[64,40,32],[64,48,32],[64,56,32],
+  [64,64,32],[56,64,32],[48,64,32],[40,64,32],
+  [32,64,32],[32,64,40],[32,64,48],[32,64,56],
+  [32,64,64],[32,56,64],[32,48,64],[32,40,64],
+  // 224-247: Marrones, piel, neutros
+  [44,28,28],[52,28,28],[60,28,28],[68,28,28],
+  [80,40,20],[100,60,20],[120,80,40],[140,100,60],
+  [160,120,80],[180,140,100],[200,160,120],[220,180,140],
+  [240,200,160],[255,220,180],[255,240,200],[255,255,220],
+  [180,100,60],[160,80,40],[140,60,20],[120,40,0],
+  [100,30,0],[80,20,0],[60,10,0],[40,5,0],
+  // 248-255: Especiales
+  [255,128,0],[255,165,0],[255,200,0],[200,100,200],
+  [100,200,200],[200,200,100],[128,0,128],[0,128,128]
+];
+
+// Devuelve el string CSS rgb() para un Ã­ndice de paleta
+function vgaColor(index) {
+  const [r, g, b] = VGA_PALETTE[index] || [0, 0, 0];
+  return `rgb(${r},${g},${b})`;
+}
+
+// ==========================================
+// ESTADO PRINCIPAL
+// ==========================================
+
+let backgroundLayer = {
+  id: 0,
+  name: "Fondo",
+  rectangles: [],
+  visible: true,
+  isBackground: true
+};
+
+let frames = [];
+let frameIdCounter = 0;
+let activeFrameId = null;
+let editingBackground = true;
+
+let drawingMode = "rect";   // "rect" | "single" | "stamp"
+let drawingState = {
+  isFirstClickFixed: false,
+  startPoint: null,
+  hoverPoint: null,
+};
+
+let selectedColorIndex = 15;  // Ã­ndice 0-255 en VGA_PALETTE (default: blanco)
+let gridActive = true;
+let rectangleIdCounter = 0;
+
+let onionSkinEnabled = true;
+let onionSkinLayers = 3;
+
+let templates = [];
+let selectedTemplateId = null;
+let templateIdCounter = 0;
+
+let canvasTooltip = null;
+
+// ==========================================
+// ELEMENTOS DEL DOM
+// ==========================================
+const canvas   = document.getElementById("pixel-canvas");
+const ctx      = canvas.getContext("2d");
+const canvasOverlay    = document.getElementById("canvas-overlay");
+const hoverCoordsEl    = document.getElementById("coords-hover");
+const paletteContainer = document.getElementById("color-palette");
+const selectedColorCircle  = document.getElementById("color-preview-circle");
+const selectedColorIndexText = document.getElementById("color-index-text");
+const historyList   = document.getElementById("history-list");
+const rectCountBadge = document.getElementById("rect-count");
+const templatesList  = document.getElementById("templates-list");
+const framesList     = document.getElementById("frames-list");
+const activeLayerLabel = document.getElementById("active-layer-label");
+
+const btnToggleGrid    = document.getElementById("btn-toggle-grid");
+const btnClear         = document.getElementById("btn-clear");
+const btnExport        = document.getElementById("btn-export");
+const btnModeRect      = document.getElementById("btn-mode-rect");
+const btnModeSingle    = document.getElementById("btn-mode-single");
+const btnModeStamp     = document.getElementById("btn-mode-stamp");
+const btnCreateTemplate = document.getElementById("btn-create-template");
+const btnAddFrame      = document.getElementById("btn-add-frame");
+const btnCloneFrame    = document.getElementById("btn-clone-frame");
+const btnEditBackground = document.getElementById("btn-edit-background");
+const btnToggleOnion   = document.getElementById("btn-toggle-onion");
+
+// ==========================================
+// INICIALIZACIÃ“N
+// ==========================================
+function init() {
+  renderPalette();
+  updateSelectedColorUI();
+
+  addFrame("Frame 1");
+  switchToBackground();
+
+  setupEventListeners();
+  createCanvasTooltip();
+  updateTemplatesUI();
+  updateFramesUI();
+  updateHistoryUI();
+  draw();
+}
+
+function createCanvasTooltip() {
+  canvasTooltip = document.createElement("div");
+  canvasTooltip.id = "canvas-tooltip";
+  canvasTooltip.style.cssText = `
+    position:fixed;background:rgba(8,12,28,0.96);
+    border:1px solid rgba(99,102,241,0.55);color:#e2e8f0;
+    padding:6px 12px;border-radius:8px;font-size:11px;
+    font-family:'JetBrains Mono',monospace;pointer-events:none;
+    z-index:9999;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.6);
+    backdrop-filter:blur(8px);white-space:nowrap;
+  `;
+  document.body.appendChild(canvasTooltip);
+}
+
+// ==========================================
+// PALETA 256 COLORES
+// ==========================================
+function renderPalette() {
+  paletteContainer.innerHTML = "";
+  VGA_PALETTE.forEach((rgb, index) => {
+    const swatch = document.createElement("div");
+    swatch.className = "color-swatch";
+    swatch.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    swatch.title = `#${index} â€” rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    swatch.dataset.index = index;
+    if (index === selectedColorIndex) swatch.classList.add("active");
+    swatch.addEventListener("click", () => {
+      document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+      swatch.classList.add("active");
+      selectedColorIndex = index;
+      updateSelectedColorUI();
+    });
+    paletteContainer.appendChild(swatch);
+  });
+}
+
+function updateSelectedColorUI() {
+  const [r, g, b] = VGA_PALETTE[selectedColorIndex];
+  selectedColorCircle.style.backgroundColor = `rgb(${r},${g},${b})`;
+  selectedColorIndexText.textContent = `Idx: ${selectedColorIndex} | rgb(${r},${g},${b})`;
+}
+
+// ==========================================
+// COORDENADAS LÃ“GICAS
+// ==========================================
+function getLogicalCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  let x = Math.floor((clientX - rect.left) * scaleX);
+  let y = Math.floor((clientY - rect.top)  * scaleY);
+  x = Math.max(0, Math.min(x, canvas.width  - 1));
+  y = Math.max(0, Math.min(y, canvas.height - 1));
+  return { x, y };
+}
+
+// ==========================================
+// EVENTOS
+// ==========================================
+function setupEventListeners() {
+  canvas.addEventListener("mousemove",  handlePointerMove);
+  canvas.addEventListener("mousedown",  handlePointerDown);
+  canvas.addEventListener("mouseleave", handlePointerLeave);
+  canvas.addEventListener("touchmove",  e => { e.preventDefault(); handlePointerMove(e); }, { passive: false });
+  canvas.addEventListener("touchstart", e => { e.preventDefault(); handlePointerDown(e); }, { passive: false });
+
+  btnToggleGrid.addEventListener("click", toggleGrid);
+  btnClear.addEventListener("click", clearCanvas);
+  btnExport.addEventListener("click", exportASM);
+
+  btnModeRect.addEventListener("click",   () => setDrawingMode("rect"));
+  btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
+  btnModeStamp.addEventListener("click",  () => setDrawingMode("stamp"));
+  btnCreateTemplate.addEventListener("click", createTemplateFromCurrentDrawing);
+
+  btnAddFrame.addEventListener("click", () => {
+    addFrame(`Frame ${frames.length + 1}`);
+    switchToFrame(frames[frames.length - 1].id);
+  });
+  btnCloneFrame.addEventListener("click", cloneActiveFrame);
+  btnEditBackground.addEventListener("click", switchToBackground);
+  btnToggleOnion.addEventListener("click", toggleOnionSkin);
+}
+
+// ==========================================
+// MODO DE DIBUJO
+// ==========================================
+function setDrawingMode(mode) {
+  drawingMode = mode;
+  drawingState.isFirstClickFixed = false;
+  drawingState.startPoint = null;
+  drawingState.hoverPoint = null;
+
+  [btnModeRect, btnModeSingle, btnModeStamp].forEach(b => {
+    b.classList.remove("btn-primary", "active");
+    b.classList.add("btn-secondary");
+  });
+
+  const targets = { rect: btnModeRect, single: btnModeSingle, stamp: btnModeStamp };
+  targets[mode].classList.remove("btn-secondary");
+  targets[mode].classList.add("btn-primary", "active");
+
+  if (mode === "stamp" && selectedTemplateId === null && templates.length > 0) {
+    selectedTemplateId = templates[0].id;
+    updateTemplatesUI();
+  }
+  draw();
+}
+
+// ==========================================
+// HOVER + TOOLTIP
+// ==========================================
+function handlePointerMove(e) {
+  const coords = getLogicalCoords(e);
+  drawingState.hoverPoint = coords;
+
+  let hoveredInfo = null;
+  const currentFrameIndex = editingBackground ? -1 : frames.findIndex(f => f.id === activeFrameId);
+  const visibleIndices = getVisibleFrameIndices();
+
+  // Buscar en fondo
+  const bgRect = backgroundLayer.rectangles.find(r => isPointInRect(coords, r));
+  if (bgRect) {
+    const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
+    hoveredInfo = { label: `ðŸŒ„ Fondo | idx:${bgRect.colorIndex}`, color: `rgb(${r},${g},${b})` };
+  }
+
+  // Buscar en frames visibles (el mÃ¡s reciente tiene prioridad)
+  for (let i = visibleIndices.length - 1; i >= 0; i--) {
+    const fi = visibleIndices[i];
+    const frame = frames[fi];
+    if (!frame || !frame.visible) continue;
+    const found = frame.rectangles.find(r => isPointInRect(coords, r));
+    if (found) {
+      const [r, g, b] = VGA_PALETTE[found.colorIndex];
+      hoveredInfo = { label: `ðŸ“½ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`, color: `rgb(${r},${g},${b})` };
+      break;
+    }
+  }
+
+  if (hoveredInfo) showCanvasTooltip(e.clientX, e.clientY, hoveredInfo);
+  else             hideCanvasTooltip();
+
+  hoverCoordsEl.textContent = `X:${coords.x}  Y:${coords.y}${hoveredInfo ? "  |  " + hoveredInfo.label : ""}`;
+  draw();
+}
+
+function handlePointerLeave() {
+  hoverCoordsEl.textContent = `X: ---  Y: ---`;
+  drawingState.hoverPoint = null;
+  hideCanvasTooltip();
+  draw();
+}
+
+function showCanvasTooltip(cx, cy, info) {
+  if (!canvasTooltip) return;
+  canvasTooltip.innerHTML = `<span style="color:#a5b4fc">${info.label}</span> <span style="display:inline-block;width:10px;height:10px;background:${info.color};border-radius:2px;vertical-align:middle;margin-left:4px;border:1px solid rgba(255,255,255,0.2)"></span>`;
+  canvasTooltip.style.display = "block";
+  canvasTooltip.style.left = (cx + 16) + "px";
+  canvasTooltip.style.top  = (cy - 10) + "px";
+}
+
+function hideCanvasTooltip() {
+  if (canvasTooltip) canvasTooltip.style.display = "none";
+}
+
+function isPointInRect(point, rect) {
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+}
+
+// ==========================================
+// DIBUJO EN CANVAS
+// ==========================================
+function getVisibleFrameIndices() {
+  const currentIndex = editingBackground
+    ? (frames.length - 1)
+    : frames.findIndex(f => f.id === activeFrameId);
+  const indices = [];
+  if (onionSkinEnabled) {
+    for (let i = Math.max(0, currentIndex - onionSkinLayers); i < currentIndex; i++) {
+      if (frames[i] && frames[i].visible) indices.push(i);
+    }
+  }
+  if (currentIndex >= 0 && frames[currentIndex]) indices.push(currentIndex);
+  return indices;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const currentFrameIndex = editingBackground
+    ? (frames.length > 0 ? frames.length - 1 : -1)
+    : frames.findIndex(f => f.id === activeFrameId);
+
+  // 1. Fondo siempre al 100%
+  if (backgroundLayer.visible) {
+    ctx.globalAlpha = 1.0;
+    backgroundLayer.rectangles.forEach(rect => drawRect(rect));
+  }
+
+  // 2. Frames con onion skinning
+  const visibleIndices = getVisibleFrameIndices();
+  visibleIndices.forEach(fi => {
+    const frame = frames[fi];
+    if (!frame || !frame.visible) return;
+    const isCurrentFrame = fi === currentFrameIndex;
+    const distance = currentFrameIndex - fi;
+
+    if (isCurrentFrame) {
+      ctx.globalAlpha = 1.0;
+      frame.rectangles.forEach(rect => drawRect(rect));
+    } else {
+      const opacitySteps = [0.35, 0.20, 0.10, 0.05];
+      ctx.globalAlpha = opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      frame.rectangles.forEach(rect => {
+        // Tinte azul para onion skin
+        const [r, g, b] = VGA_PALETTE[rect.colorIndex];
+        const mix = Math.min(0.5, distance * 0.2);
+        const nr = Math.round(r * (1-mix) + 60*mix);
+        const ng = Math.round(g * (1-mix) + 80*mix);
+        const nb = Math.round(b * (1-mix) + 200*mix);
+        ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+        const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+        const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+        ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+      });
+    }
+  });
+
+  ctx.globalAlpha = 1.0;
+  drawPreview();
+}
+
+function drawRect(rect) {
+  ctx.fillStyle = vgaColor(rect.colorIndex);
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+}
+
+function drawPreview() {
+  if (!drawingState.hoverPoint) return;
+  const hp = drawingState.hoverPoint;
+
+  if (drawingMode === "single") {
+    ctx.fillStyle = vgaColor(selectedColorIndex);
+    ctx.globalAlpha = 0.6;
+    ctx.fillRect(hp.x, hp.y, 1, 1);
+    ctx.globalAlpha = 1.0;
+
+  } else if (drawingMode === "stamp" && selectedTemplateId !== null) {
+    const tmpl = templates.find(t => t.id === selectedTemplateId);
+    if (tmpl) {
+      ctx.globalAlpha = 0.5;
+      tmpl.rects.forEach(r => {
+        ctx.fillStyle = vgaColor(r.colorIndex);
+        const x1 = clamp(r.x1 + hp.x, 0, canvas.width-1);
+        const y1 = clamp(r.y1 + hp.y, 0, canvas.height-1);
+        const x2 = clamp(r.x2 + hp.x, 0, canvas.width-1);
+        const y2 = clamp(r.y2 + hp.y, 0, canvas.height-1);
+        const mnX = Math.min(x1,x2), mxX = Math.max(x1,x2);
+        const mnY = Math.min(y1,y2), mxY = Math.max(y1,y2);
+        ctx.fillRect(mnX, mnY, (mxX-mnX)+1, (mxY-mnY)+1);
+      });
+      ctx.globalAlpha = 1.0;
+      // Bounding box
+      const bounds = tmpl.rects.reduce((a,r) => ({
+        minX: Math.min(a.minX,r.x1,r.x2), maxX: Math.max(a.maxX,r.x1,r.x2),
+        minY: Math.min(a.minY,r.y1,r.y2), maxY: Math.max(a.maxY,r.y1,r.y2)
+      }), { minX:Infinity, maxX:-Infinity, minY:Infinity, maxY:-Infinity });
+      if (bounds.minX !== Infinity) {
+        ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+        const bx = clamp(bounds.minX+hp.x,0,canvas.width-1);
+        const by = clamp(bounds.minY+hp.y,0,canvas.height-1);
+        ctx.strokeRect(bx-.5, by-.5, bounds.maxX-bounds.minX+2, bounds.maxY-bounds.minY+2);
+        ctx.setLineDash([]);
+      }
+    }
+
+  } else if (drawingMode === "rect" && drawingState.isFirstClickFixed && drawingState.startPoint) {
+    ctx.fillStyle = vgaColor(selectedColorIndex);
+    ctx.globalAlpha = 0.55;
+    const minX = Math.min(drawingState.startPoint.x, hp.x);
+    const maxX = Math.max(drawingState.startPoint.x, hp.x);
+    const minY = Math.min(drawingState.startPoint.y, hp.y);
+    const maxY = Math.max(drawingState.startPoint.y, hp.y);
+    ctx.fillRect(minX, minY, (maxX-minX)+1, (maxY-minY)+1);
+    ctx.globalAlpha = 1.0;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+    ctx.strokeRect(minX-.5, minY-.5, (maxX-minX)+2, (maxY-minY)+2);
+    ctx.setLineDash([]);
+  }
+}
+
+function clamp(v, mn, mx) { return Math.max(mn, Math.min(v, mx)); }
+
+// ==========================================
+// EVENTOS DE DIBUJO
+// ==========================================
+function handlePointerDown(e) {
+  const coords = getLogicalCoords(e);
+  const layer  = getActiveEditingLayer();
+  if (!layer) return;
+
+  if (drawingMode === "stamp") {
+    if (selectedTemplateId === null) { alert("Selecciona una plantilla primero."); return; }
+    const tmpl = templates.find(t => t.id === selectedTemplateId);
+    if (!tmpl) return;
+    tmpl.rects.forEach(r => {
+      layer.rectangles.push({
+        id: ++rectangleIdCounter, type: r.type,
+        x1: clamp(r.x1+coords.x, 0, canvas.width-1),
+        y1: clamp(r.y1+coords.y, 0, canvas.height-1),
+        x2: clamp(r.x2+coords.x, 0, canvas.width-1),
+        y2: clamp(r.y2+coords.y, 0, canvas.height-1),
+        colorIndex: r.colorIndex
+      });
+    });
+    optimizeRectangles(layer);
+    draw(); updateHistoryUI(); updateFramesUI();
+
+  } else if (drawingMode === "single") {
+    layer.rectangles.push({
+      id: ++rectangleIdCounter, type: "pixel",
+      x1: coords.x, y1: coords.y,
+      x2: coords.x, y2: coords.y,
+      colorIndex: selectedColorIndex
+    });
+    optimizeRectangles(layer);
+    drawingState.isFirstClickFixed = false;
+    drawingState.startPoint = null;
+    draw(); updateHistoryUI(); updateFramesUI();
+
+  } else {
+    // rect: 2 clics
+    if (!drawingState.isFirstClickFixed) {
+      drawingState.isFirstClickFixed = true;
+      drawingState.startPoint = coords;
+      drawingState.hoverPoint = coords;
+      draw();
+    } else {
+      layer.rectangles.push({
+        id: ++rectangleIdCounter, type: "rect",
+        x1: drawingState.startPoint.x, y1: drawingState.startPoint.y,
+        x2: coords.x, y2: coords.y,
+        colorIndex: selectedColorIndex
+      });
+      optimizeRectangles(layer);
+      drawingState.isFirstClickFixed = false;
+      drawingState.startPoint = null;
+      drawingState.hoverPoint = null;
+      draw(); updateHistoryUI(); updateFramesUI();
+    }
+  }
+}
+
+// ==========================================
+// OPTIMIZACIÃ“N
+// ==========================================
+function optimizeRectangles(layer) {
+  if (!layer || layer.rectangles.length < 2) return;
+  const rects = layer.rectangles;
+  const last  = rects[rects.length - 1];
+  const nMinX = Math.min(last.x1, last.x2), nMaxX = Math.max(last.x1, last.x2);
+  const nMinY = Math.min(last.y1, last.y2), nMaxY = Math.max(last.y1, last.y2);
+  for (let i = rects.length - 2; i >= 0; i--) {
+    const p = rects[i];
+    const pMinX = Math.min(p.x1,p.x2), pMaxX = Math.max(p.x1,p.x2);
+    const pMinY = Math.min(p.y1,p.y2), pMaxY = Math.max(p.y1,p.y2);
+    if (nMinX<=pMinX && nMaxX>=pMaxX && nMinY<=pMinY && nMaxY>=pMaxY)
+      rects.splice(i, 1);
+  }
+}
+
+// ==========================================
+// GESTIÃ“N DE CAPAS / FRAMES
+// ==========================================
+function getActiveEditingLayer() {
+  if (editingBackground) return backgroundLayer;
+  return frames.find(f => f.id === activeFrameId) || null;
+}
+
+function getActiveFrame() {
+  return frames.find(f => f.id === activeFrameId) || null;
+}
+
+function addFrame(name) {
+  const f = { id: ++frameIdCounter, name: name || `Frame ${frameIdCounter}`, rectangles: [], visible: true };
+  frames.push(f);
+  return f;
+}
+
+function switchToFrame(fId) {
+  activeFrameId = fId; editingBackground = false;
+  updateActiveLayerLabel(); updateFramesUI(); updateHistoryUI(); draw();
+}
+
+function switchToBackground() {
+  editingBackground = true; activeFrameId = null;
+  updateActiveLayerLabel(); updateFramesUI(); updateHistoryUI(); draw();
+}
+
+function cloneActiveFrame() {
+  if (editingBackground) { alert("Selecciona un Frame para clonar."); return; }
+  const af = getActiveFrame(); if (!af) return;
+  const newF = {
+    id: ++frameIdCounter, name: `${af.name} (Copia)`,
+    rectangles: af.rectangles.map(r => ({...r, id: ++rectangleIdCounter})),
+    visible: true
+  };
+  frames.push(newF);
+  switchToFrame(newF.id);
+}
+
+function deleteFrameById(id) {
+  if (frames.length <= 1) { alert("Debe haber al menos un frame."); return; }
+  const f = frames.find(f => f.id === id);
+  if (!f) return;
+  if (confirm(`Â¿Eliminar "${f.name}"?`)) {
+    frames = frames.filter(f => f.id !== id);
+    if (activeFrameId === id) switchToFrame(frames[frames.length-1].id);
+    else { updateFramesUI(); draw(); }
+  }
+}
+
+function toggleFrameVisibility(id) {
+  const f = frames.find(f => f.id === id);
+  if (f) { f.visible = !f.visible; updateFramesUI(); draw(); }
+}
+
+// ==========================================
+// ONION SKIN
+// ==========================================
+function toggleOnionSkin() {
+  onionSkinEnabled = !onionSkinEnabled;
+  if (onionSkinEnabled) {
+    btnToggleOnion.classList.replace("btn-secondary","btn-primary");
+    btnToggleOnion.innerHTML = '<span class="btn-icon">ðŸ§…</span> Cebolla: ON';
+  } else {
+    btnToggleOnion.classList.replace("btn-primary","btn-secondary");
+    btnToggleOnion.innerHTML = '<span class="btn-icon">ðŸ§…</span> Cebolla: OFF';
+  }
+  draw();
+}
+
+// ==========================================
+// UPDATE UI
+// ==========================================
+function updateActiveLayerLabel() {
+  if (!activeLayerLabel) return;
+  if (editingBackground) {
+    activeLayerLabel.textContent = "âœï¸ Editando: Fondo";
+    activeLayerLabel.style.color = "#fbbf24";
+  } else {
+    const f = getActiveFrame();
+    activeLayerLabel.textContent = f ? `âœï¸ Editando: ${f.name}` : "â€”";
+    activeLayerLabel.style.color = "#818cf8";
+  }
+}
+
+function updateHistoryUI() {
+  if (!historyList) return;
+  historyList.innerHTML = "";
+  const layer = getActiveEditingLayer();
+  if (!layer) { rectCountBadge.textContent = "0 Rects"; return; }
+  const rects = layer.rectangles;
+  rectCountBadge.textContent = `${rects.length} ${rects.length===1?"Rect":"Rects"}`;
+
+  if (rects.length === 0) {
+    const e = document.createElement("li");
+    e.className = "empty-state";
+    e.textContent = "No hay figuras en esta capa.";
+    historyList.appendChild(e);
+    return;
+  }
+
+  rects.forEach((rect, idx) => {
+    const item = document.createElement("li");
+    item.className = "history-item";
+
+    const details = document.createElement("div");
+    details.className = "history-item-details";
+
+    const preview = document.createElement("div");
+    preview.className = "history-color-preview";
+    preview.style.backgroundColor = vgaColor(rect.colorIndex);
+
+    const coordsSpan = document.createElement("span");
+    coordsSpan.className = "history-coords";
+    const isPixel = rect.type === "pixel";
+    if (isPixel) {
+      coordsSpan.innerHTML = `P${idx+1}: (${rect.x1}),(${rect.y1})`;
+    } else {
+      coordsSpan.innerHTML = `R${idx+1}: [${rect.x1},${rect.y1}]â†’[${rect.x2},${rect.y2}]`;
+    }
+
+    const colorSpan = document.createElement("span");
+    colorSpan.className = "history-color-hex";
+    colorSpan.textContent = ` idx:${rect.colorIndex}`;
+
+    coordsSpan.appendChild(colorSpan);
+    details.appendChild(preview);
+    details.appendChild(coordsSpan);
+
+    const del = document.createElement("button");
+    del.className = "btn-delete-item";
+    del.title = "Eliminar";
+    del.innerHTML = "âŒ";
+    del.addEventListener("click", e => {
+      e.stopPropagation();
+      layer.rectangles = layer.rectangles.filter(r => r.id !== rect.id);
+      draw(); updateHistoryUI(); updateFramesUI();
+    });
+
+    item.appendChild(details);
+    item.appendChild(del);
+    historyList.appendChild(item);
+  });
+}
+
+function updateFramesUI() {
+  if (!framesList) return;
+  framesList.innerHTML = "";
+
+  // Item de Fondo
+  const bgItem = document.createElement("li");
+  bgItem.className = "layer-item frame-bg-item" + (editingBackground ? " active" : "");
+  bgItem.title = "Capa de Fondo â€” aparece en todos los frames";
+  bgItem.addEventListener("click", () => switchToBackground());
+
+  const bgLeft = document.createElement("div"); bgLeft.className = "layer-item-left";
+  const bgVis  = document.createElement("button"); bgVis.className = "btn-layer-visibility";
+  bgVis.innerHTML = backgroundLayer.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
+  bgVis.addEventListener("click", e => {
+    e.stopPropagation();
+    backgroundLayer.visible = !backgroundLayer.visible;
+    updateFramesUI(); draw();
+  });
+  const bgLabel = document.createElement("span"); bgLabel.className = "layer-name-display bg-label";
+  bgLabel.innerHTML = `ðŸŒ„ Fondo <small class="badge-persistent">[persistente]</small>`;
+  bgLeft.appendChild(bgVis); bgLeft.appendChild(bgLabel);
+
+  const bgRight = document.createElement("div"); bgRight.className = "layer-item-right";
+  const bgCount = document.createElement("span"); bgCount.className = "layer-rect-count";
+  bgCount.textContent = `${backgroundLayer.rectangles.length}r`;
+  bgRight.appendChild(bgCount);
+
+  bgItem.appendChild(bgLeft); bgItem.appendChild(bgRight);
+  framesList.appendChild(bgItem);
+
+  // Separador
+  const sep = document.createElement("li"); sep.className = "frames-separator";
+  sep.innerHTML = `â”€â”€ Frames (${frames.length}) â”€â”€`;
+  framesList.appendChild(sep);
+
+  // Frames (mÃ¡s reciente arriba)
+  [...frames].reverse().forEach((frame, ri) => {
+    const item = document.createElement("li");
+    item.className = "layer-item" + ((!editingBackground && activeFrameId===frame.id) ? " active" : "");
+    item.addEventListener("click", () => switchToFrame(frame.id));
+
+    const left = document.createElement("div"); left.className = "layer-item-left";
+    const visBtn = document.createElement("button"); visBtn.className = "btn-layer-visibility";
+    visBtn.innerHTML = frame.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
+    visBtn.addEventListener("click", e => { e.stopPropagation(); toggleFrameVisibility(frame.id); });
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.className = "layer-name-input";
+    nameInput.value = frame.name;
+    nameInput.addEventListener("change", e => { frame.name=e.target.value; updateFramesUI(); updateActiveLayerLabel(); });
+    nameInput.addEventListener("click", e => { if(!editingBackground && activeFrameId===frame.id) e.stopPropagation(); });
+
+    left.appendChild(visBtn); left.appendChild(nameInput);
+
+    const right = document.createElement("div"); right.className = "layer-item-right";
+    const cnt = document.createElement("span"); cnt.className = "layer-rect-count";
+    cnt.textContent = `${frame.rectangles.length}r`;
+    const del = document.createElement("button"); del.className = "btn-layer-control delete";
+    del.innerHTML = "ðŸ—‘ï¸"; del.title = "Eliminar frame";
+    del.addEventListener("click", e => { e.stopPropagation(); deleteFrameById(frame.id); });
+
+    right.appendChild(cnt); right.appendChild(del);
+    item.appendChild(left); item.appendChild(right);
+    framesList.appendChild(item);
+  });
+
+  updateActiveLayerLabel();
+}
+
+// ==========================================
+// ACCIONES
+// ==========================================
+function toggleGrid() {
+  gridActive = !gridActive;
+  if (gridActive) {
+    canvasOverlay.classList.add("grid-active");
+    btnToggleGrid.innerHTML = '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON';
+    btnToggleGrid.classList.replace("btn-secondary","btn-primary");
+  } else {
+    canvasOverlay.classList.remove("grid-active");
+    btnToggleGrid.innerHTML = '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: OFF';
+    btnToggleGrid.classList.replace("btn-primary","btn-secondary");
+  }
+}
+
+function clearCanvas() {
+  const layer = getActiveEditingLayer();
+  if (!layer || layer.rectangles.length===0) return;
+  const name = editingBackground ? "Fondo" : (getActiveFrame()?.name || "");
+  if (confirm(`Â¿Limpiar todos los elementos de "${name}"?`)) {
+    layer.rectangles = [];
+    draw(); updateHistoryUI(); updateFramesUI();
+  }
+}
+
+// ==========================================
+// FORMATEO ASM
+// ==========================================
+
+/**
+ * Convierte un Ã­ndice de color (0-255) al formato (XXXX)H
+ * Ej: 255 â†’ "(00FF)H",  16 â†’ "(0010)H"
+ */
+function colorToASMHex(colorIndex) {
+  const hex = colorIndex.toString(16).toUpperCase().padStart(4, "0");
+  return `${hex}H`;
+}
+
+/**
+ * Genera los comandos ASM (DRAW_REGION / PINTAR_PIXEL) de un array de rects.
+ * Devuelve solo el bloque de instrucciones, sin cabecera de archivo.
+ */
+function buildCommandsBlock(rects) {
+  let commands = "";
+  rects.forEach(rect => {
+    if (rect.type === "pixel") {
+      // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL)
+      commands += `    PINTAR_PIXEL (${rect.x1}), (${rect.y1}), (${rect.colorIndex})\n`;
+    } else {
+      const x1 = Math.min(rect.x1, rect.x2);
+      const y1 = Math.min(rect.y1, rect.y2);
+      const x2 = Math.max(rect.x1, rect.x2);
+      const y2 = Math.max(rect.y1, rect.y2);
+      const colorHex = colorToASMHex(rect.colorIndex);
+      // DRAW_REGION X1,Y1, X2,Y2 , (COLOR_HEX)H
+      commands += `    DRAW_REGION ${x1},${y1}, ${x2},${y2} , ${colorHex}\n`;
+    }
+  });
+  return commands || "    ; (capa vacÃ­a)\n";
+}
+
+/**
+ * Genera fondo.asm â€” Capa de fondo persistente.
+ * Proc name: "fondo"
+ */
+function generateFondoASM(rects) {
+  const commands = buildCommandsBlock(rects);
+  return [
+    "INCLUDE LIBRO.LIB",
+    "INCLUDE M.LIB",
+    "",
+    ".MODEL LARGE",
+    ".CODE",
+    "",
+    "PUBLIC fondo",
+    "fondo PROC",
+    "",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "",
+    commands.trimEnd(),
+    "",
+    "RET",
+    "fondo ENDP",
+    "",
+    "END fondo",
+    ""
+  ].join("\n");
+}
+
+/**
+ * Genera F1.asm â€¦ Fn.asm â€” Un frame de animaciÃ³n.
+ * @param {string} procName  "F1", "F2", etc.
+ * @param {Array}  rects     rectÃ¡ngulos del frame
+ */
+function generateFrameASM(procName, rects) {
+  const commands = buildCommandsBlock(rects);
+  return [
+    "INCLUDE LIBRO.LIB",
+    "INCLUDE M.LIB",
+    "",
+    ".MODEL LARGE",
+    ".CODE",
+    "",
+    `PUBLIC ${procName}`,
+    `${procName} PROC`,
+    "",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "",
+    commands.trimEnd(),
+    "",
+    "RET",
+    `${procName} ENDP`,
+    "",
+    `END ${procName}`,
+    ""
+  ].join("\n");
+}
+
+/**
+ * Genera Orquesta.asm â€” Archivo principal orquestador.
+ * Estructura:
+ *   EXTRN fondo:FAR
+ *   EXTRN F1:FAR â€¦ EXTRN Fn:FAR
+ *   ...
+ *   CALL fondo
+ *       CALL F1
+ *       PAUSA 2
+ *   CALL fondo
+ *       CALL F2
+ *       PAUSA 2
+ *   (para cada frame)
+ *
+ * @param {number} frameCount â€” nÃºmero de frames (F1..Fn)
+ */
+function generateOrquestaASM(frameCount) {
+  // â”€â”€ EXTRN block â”€â”€
+  let extrns = "EXTRN fondo:FAR\n";
+  for (let i = 1; i <= frameCount; i++) {
+    extrns += `EXTRN F${i}:FAR\n`;
+  }
+
+  // â”€â”€ CALL block: por cada frame â†’ CALL fondo + CALL Fn + PAUSA 2 â”€â”€
+  let calls = "";
+  for (let i = 1; i <= frameCount; i++) {
+    calls += `    CALL fondo\n    CALL F${i}\n    PAUSA 2\n`;
+    if (i < frameCount) calls += "\n";
+  }
+
+  return [
+    "CAMBIAR_MODO_GRAFICO Macro Modo",
+    "MOV AX, Modo",
+    "INT 10h",
+    "ENDM",
+    "",
+    "INCLUDE LIBRO.LIB",
+    "INCLUDE M.LIB",
+    "",
+    extrns.trimEnd(),
+    "",
+    ".MODEL LARGE",
+    ".STACK 100H",
+    ".DATA",
+    ".CODE",
+    "",
+    "PRIN PROC FAR",
+    "Inicio:",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "CAMBIAR_MODO_GRAFICO 0013H",
+    "",
+    calls.trimEnd(),
+    "",
+    "Salida:",
+    "MOV AH, 4CH",
+    "INT 21H",
+    "",
+    "PRIN ENDP",
+    "END PRIN",
+    ""
+  ].join("\n");
+}
+
+function generateBuildBAT(frameCount) {
+  const lines = [
+    "@echo off",
+    "echo Compilando fondo.asm...",
+    "tasm fondo.asm",
+    "if errorlevel 1 goto error",
+    ""
+  ];
+
+  for (let i = 1; i <= frameCount; i++) {
+    lines.push(
+      `echo Compilando F${i}.asm...`,
+      `tasm F${i}.asm`,
+      "if errorlevel 1 goto error",
+      ""
+    );
+  }
+
+  lines.push(
+    "echo Compilando Orquesta.asm...",
+    "tasm Orquesta.asm",
+    "if errorlevel 1 goto error",
+    "",
+    "echo Enlazando Orquesta.exe...",
+    "tlink @link.rsp",
+    "if errorlevel 1 goto error",
+    "",
+    "echo Ejecutando Orquesta...",
+    "Orquesta",
+    "goto end",
+    "",
+    ":error",
+    "echo.",
+    "echo Error al compilar o enlazar. Revisa los mensajes anteriores.",
+    "",
+    ":end"
+  );
+
+  return lines.join("\r\n") + "\r\n";
+}
+
+function generateLinkResponse(frameCount) {
+  const objects = ["Orquesta.obj", "fondo.obj"];
+
+  for (let i = 1; i <= frameCount; i++) {
+    objects.push(`F${i}.obj`);
+  }
+
+  return objects
+    .map((objectName, index) => index < objects.length - 1 ? `${objectName}+` : objectName)
+    .join("\r\n") + "\r\n";
+}
+/**
+ * Exporta todos los archivos .asm en un ZIP:
+ *   fondo.asm     â€” capa de fondo
+ *   F1.asm â€¦ Fn.asm â€” frames de animaciÃ³n
+ *   Orquesta.asm  â€” orquestador principal
+ */
+async function exportASM() {
+  // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
+  const allLayers = [backgroundLayer, ...frames];
+  const totalRects = allLayers.reduce((a, l) => a + l.rectangles.length, 0);
+
+  if (totalRects === 0) {
+    alert("No hay datos que exportar. Dibuja algo primero.");
+    return;
+  }
+
+  // Generar archivos
+  const files = {}; // { filename: content }
+
+  files["fondo.asm"] = generateFondoASM(backgroundLayer.rectangles);
+
+  frames.forEach((frame, i) => {
+    const procName = `F${i + 1}`;
+    files[`${procName}.asm`] = generateFrameASM(procName, frame.rectangles);
+  });
+
+  files["Orquesta.asm"] = generateOrquestaASM(frames.length);
+  files["build.bat"] = generateBuildBAT(frames.length);
+  files["link.rsp"] = generateLinkResponse(frames.length);
+
+  // Intentar ZIP con JSZip
+  if (typeof JSZip !== "undefined") {
+    const zip = new JSZip();
+    Object.entries(files).forEach(([name, content]) => zip.file(name, content));
+    const blob = await zip.generateAsync({ type: "blob" });
+    downloadBlob(blob, `pixel_animation_asm_${Date.now()}.zip`);
+  } else {
+    // Fallback: descarga individual
+    Object.entries(files).forEach(([name, content]) => {
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, name);
+    });
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href  = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ==========================================
+// PLANTILLAS
+// ==========================================
+function updateTemplatesUI() {
+  if (!templatesList) return;
+  templatesList.innerHTML = "";
+  if (templates.length === 0) {
+    const e = document.createElement("li");
+    e.className = "empty-state-sm";
+    e.textContent = "No hay plantillas guardadas.";
+    templatesList.appendChild(e);
+    return;
+  }
+  templates.forEach(tmpl => {
+    const item = document.createElement("li");
+    item.className = "template-item" + (selectedTemplateId===tmpl.id?" active":"");
+    item.addEventListener("click", () => {
+      selectedTemplateId = tmpl.id;
+      updateTemplatesUI();
+      if (drawingMode!=="stamp") setDrawingMode("stamp"); else draw();
+    });
+
+    const det = document.createElement("div"); det.className = "template-item-details";
+    const nm  = document.createElement("span"); nm.className  = "template-name";  nm.textContent = tmpl.name;
+    const inf = document.createElement("span"); inf.className = "template-info";  inf.textContent = `${tmpl.rects.length} rects (${tmpl.width}Ã—${tmpl.height})`;
+    det.appendChild(nm); det.appendChild(inf);
+
+    const del = document.createElement("button"); del.className="btn-delete-template"; del.innerHTML="ðŸ—‘ï¸";
+    del.addEventListener("click", e => { e.stopPropagation(); deleteTemplateById(tmpl.id); });
+
+    item.appendChild(det); item.appendChild(del);
+    templatesList.appendChild(item);
+  });
+}
+
+function createTemplateFromCurrentDrawing() {
+  const layer = getActiveEditingLayer();
+  if (!layer || layer.rectangles.length===0) { alert("Dibuja algo primero."); return; }
+  const name = prompt("Nombre de la plantilla:", `Sprite ${templates.length+1}`);
+  if (name===null) return;
+
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  layer.rectangles.forEach(r => {
+    const rMinX=Math.min(r.x1,r.x2), rMaxX=Math.max(r.x1,r.x2);
+    const rMinY=Math.min(r.y1,r.y2), rMaxY=Math.max(r.y1,r.y2);
+    if(rMinX<minX) minX=rMinX; if(rMaxX>maxX) maxX=rMaxX;
+    if(rMinY<minY) minY=rMinY; if(rMaxY>maxY) maxY=rMaxY;
+  });
+
+  const relRects = layer.rectangles.map(r => ({
+    x1:r.x1-minX, y1:r.y1-minY, x2:r.x2-minX, y2:r.y2-minY,
+    colorIndex: r.colorIndex, type: r.type
+  }));
+
+  const tmpl = { id:++templateIdCounter, name:name||`Sprite ${templateIdCounter}`,
+    rects:relRects, width:(maxX-minX)+1, height:(maxY-minY)+1 };
+  templates.push(tmpl);
+  selectedTemplateId = tmpl.id;
+  updateTemplatesUI(); setDrawingMode("stamp");
+}
+
+function deleteTemplateById(id) {
+  templates = templates.filter(t => t.id!==id);
+  if (selectedTemplateId===id) selectedTemplateId = templates.length>0 ? templates[0].id : null;
+  updateTemplatesUI(); draw();
+}
+
+// ==========================================
+// ARRANCAR
+// ==========================================
+window.addEventListener("DOMContentLoaded", init);

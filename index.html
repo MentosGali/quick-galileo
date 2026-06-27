@@ -1,0 +1,229 @@
+﻿<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PixelArt Animation Tool â€” ASM 320Ã—200</title>
+    <meta
+      name="description"
+      content="Herramienta de animaciÃ³n pixel art. Exporta DRAW_REGION / PINTAR_PIXEL en archivos .asm por capa."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!-- JSZip para exportar mÃºltiples archivos en un ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <header class="app-header">
+        <div class="logo-area">
+          <span class="logo-icon">ðŸŽ¬</span>
+          <div>
+            <h1>PixelArt Animation Tool</h1>
+            <p class="subtitle">
+              Paleta VGA 256 Â· Fondo persistente Â· Frames Â· Onion Skinning Â·
+              320Ã—200 px Â· Exporta .ASM
+            </p>
+          </div>
+        </div>
+        <div class="actions-header">
+          <div class="mode-selector">
+            <button
+              id="btn-mode-rect"
+              class="btn btn-primary active"
+              title="DRAW_REGION: rectÃ¡ngulo con dos clics"
+            >
+              â–¬ Rect
+            </button>
+            <button
+              id="btn-mode-single"
+              class="btn btn-secondary"
+              title="PINTAR_PIXEL: un solo pÃ­xel con un clic"
+            >
+              Â· Pixel
+            </button>
+            <button
+              id="btn-mode-stamp"
+              class="btn btn-secondary"
+              title="Estampar plantilla guardada"
+            >
+              â¬› Stamp
+            </button>
+          </div>
+          <button
+            id="btn-toggle-grid"
+            class="btn btn-primary"
+            title="Alternar cuadrÃ­cula"
+          >
+            <span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON
+          </button>
+          <button
+            id="btn-toggle-onion"
+            class="btn btn-primary"
+            title="Onion Skinning: ver frames anteriores desvanecidos"
+          >
+            <span class="btn-icon">ðŸ§…</span> Cebolla: ON
+          </button>
+          <button
+            id="btn-clear"
+            class="btn btn-danger"
+            title="Limpiar la capa activa"
+          >
+            <span class="btn-icon">ðŸ—‘ï¸</span> Limpiar
+          </button>
+        </div>
+      </header>
+
+      <div class="main-layout">
+        <!-- IZQUIERDA: Canvas + Paleta -->
+        <main class="canvas-section">
+          <div class="canvas-wrapper">
+            <!-- Indicador de capa activa -->
+            <div class="active-layer-bar">
+              <span id="active-layer-label" class="active-layer-label"
+                >âœï¸ Editando: Fondo</span
+              >
+              <span class="active-layer-hint"
+                >â† Selecciona una capa en el panel derecho</span
+              >
+            </div>
+
+            <div class="canvas-container">
+              <canvas id="pixel-canvas" width="320" height="200"></canvas>
+              <div id="canvas-overlay" class="grid-active"></div>
+            </div>
+
+            <div class="zoom-info">
+              <span
+                >ResoluciÃ³n: 320 Ã— 200 px | Origen (0,0) = Esquina superior
+                izquierda</span
+              >
+              <span id="coords-hover" class="coords-hover">X: 0 Y: 0</span>
+            </div>
+          </div>
+
+          <!-- Paleta VGA 256 colores -->
+          <section class="palette-container">
+            <div class="palette-header">
+              <h3>Paleta VGA â€” 256 Colores (Ã­ndices 0â€“255)</h3>
+              <span class="color-badge-text">
+                Color activo: <span id="color-preview-circle"></span>
+                <strong id="color-index-text"
+                  >Idx: 15 | rgb(252,252,252)</strong
+                >
+              </span>
+            </div>
+            <div class="color-palette" id="color-palette">
+              <!-- 256 swatches inyectados via JS -->
+            </div>
+          </section>
+        </main>
+
+        <!-- DERECHA: Sidebar -->
+        <aside class="sidebar-section">
+          <div class="sidebar-header">
+            <h3>Gestor de AnimaciÃ³n</h3>
+            <span class="count-badge" id="rect-count">0 Rects</span>
+          </div>
+          <div class="sidebar-body">
+            <!-- GuÃ­a rÃ¡pida -->
+            <div class="instructions-card">
+              <h4>ðŸŽ¬ Flujo de trabajo ASM</h4>
+              <ol>
+                <li>
+                  <strong>Fondo:</strong> Se exporta como
+                  <code>fondo.asm</code> y se repinta antes de cada frame
+                </li>
+                <li>
+                  <strong>Rect</strong> â†’
+                  <code>DRAW_REGION X1,Y1, X2,Y2 , (XXXX)H</code>
+                </li>
+                <li>
+                  <strong>Pixel</strong> â†’
+                  <code>PINTAR_PIXEL (X), (Y), (IDX)</code>
+                </li>
+                <li>
+                  <strong>Exportar</strong> -> ZIP con
+                  <code
+                    >fondo.asm + F1.asm ... Fn.asm + Orquesta.asm +
+                    build.bat</code
+                  >
+                </li>
+              </ol>
+            </div>
+
+            <!-- Fondo + Frames -->
+            <div class="layers-container">
+              <div class="section-title-row">
+                <h4>ðŸŽžï¸ Fondo + Frames</h4>
+                <div class="layer-actions">
+                  <button
+                    id="btn-edit-background"
+                    class="btn btn-secondary btn-sm"
+                    title="Editar el Fondo"
+                  >
+                    ðŸŒ„ Fondo
+                  </button>
+                  <button
+                    id="btn-add-frame"
+                    class="btn btn-secondary btn-sm"
+                    title="Nuevo frame"
+                  >
+                    âž• Frame
+                  </button>
+                  <button
+                    id="btn-clone-frame"
+                    class="btn btn-secondary btn-sm"
+                    title="Clonar frame activo"
+                  >
+                    ðŸ“‹ Clonar
+                  </button>
+                </div>
+              </div>
+              <ul id="frames-list" class="layers-list frames-list">
+                <!-- inyectado via JS -->
+              </ul>
+            </div>
+
+            <!-- Plantillas -->
+            <div class="templates-container">
+              <div class="section-title-row">
+                <h4>ðŸ–¼ï¸ Plantillas de Sprites</h4>
+                <button
+                  id="btn-create-template"
+                  class="btn btn-secondary btn-sm"
+                  title="Guardar dibujo actual como plantilla"
+                >
+                  âž• Guardar
+                </button>
+              </div>
+              <ul id="templates-list" class="templates-list">
+                <li class="empty-state-sm">No hay plantillas.</li>
+              </ul>
+            </div>
+
+            <!-- Coordenadas capa activa -->
+            <div class="history-list-container">
+              <h4>ðŸ“‹ Comandos ASM â€” Capa Activa</h4>
+              <ul id="history-list" class="history-list">
+                <li class="empty-state">No hay figuras en esta capa.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="sidebar-footer">
+            <button id="btn-export" class="btn btn-primary btn-block">
+              <span class="btn-icon">ðŸ“¦</span> Exportar .ASM (ZIP)
+            </button>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
