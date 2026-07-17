@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // ==========================================
 //  PIXEL ART ANIMATION TOOL - app.js
 //  Paleta VGA 256 colores (modo 13h)
@@ -6,11 +6,11 @@
 // ==========================================
 
 // ==========================================
-// PALETA VGA 256 COLORES (Ã­ndices 0-255)
-// Valores RGB para representaciÃ³n en canvas
+// PALETA VGA 256 COLORES (índices 0-255)
+// Valores RGB para representación en canvas
 // ==========================================
 const VGA_PALETTE = [
-  // 0-15: Colores bÃ¡sicos EGA/VGA
+  // 0-15: Colores básicos EGA/VGA
   [0, 0, 0],
   [0, 0, 168],
   [0, 168, 0],
@@ -280,7 +280,7 @@ const VGA_PALETTE = [
   [0, 128, 128],
 ];
 
-// Devuelve el string CSS rgb() para un Ã­ndice de paleta
+// Devuelve el string CSS rgb() para un índice de paleta
 function vgaColor(index) {
   const [r, g, b] = VGA_PALETTE[index] || [0, 0, 0];
   return `rgb(${r},${g},${b})`;
@@ -294,6 +294,7 @@ let backgroundLayer = {
   id: 0,
   name: "Fondo",
   rectangles: [],
+  sprites: [],
   visible: true,
   isBackground: true,
 };
@@ -303,16 +304,21 @@ let frameIdCounter = 0;
 let activeFrameId = null;
 let editingBackground = true;
 
-let drawingMode = "rect"; // "rect" | "single" | "stamp"
+let drawingMode = "rect"; // "rect" | "single" | "stamp" | "select"
 let drawingState = {
   isFirstClickFixed: false,
   startPoint: null,
   hoverPoint: null,
 };
 
-let selectedColorIndex = 15; // Ã­ndice 0-255 en VGA_PALETTE (default: blanco)
+let selectedColorIndex = 15; // índice 0-255 en VGA_PALETTE (default: blanco)
 let gridActive = true;
 let rectangleIdCounter = 0;
+let spriteIdCounter = 0;
+
+let activeSelectedSpriteId = null; // ID del sprite actualmente seleccionado
+let isDraggingSprite = false;
+let dragOffset = { x: 0, y: 0 };
 
 const COSTOS_BYTES = {
   PINTAR_PIXEL: 12,
@@ -354,6 +360,7 @@ const btnExport = document.getElementById("btn-export");
 const btnModeRect = document.getElementById("btn-mode-rect");
 const btnModeSingle = document.getElementById("btn-mode-single");
 const btnModeStamp = document.getElementById("btn-mode-stamp");
+const btnModeSelect = document.getElementById("btn-mode-select");
 const btnCreateTemplate = document.getElementById("btn-create-template");
 const btnAddFrame = document.getElementById("btn-add-frame");
 const btnCloneFrame = document.getElementById("btn-clone-frame");
@@ -361,7 +368,7 @@ const btnEditBackground = document.getElementById("btn-edit-background");
 const btnToggleOnion = document.getElementById("btn-toggle-onion");
 
 // ==========================================
-// INICIALIZACIÃ“N
+// INICIALIZACIÓN
 // ==========================================
 function init() {
   renderPalette();
@@ -402,7 +409,7 @@ function renderPalette() {
     const swatch = document.createElement("div");
     swatch.className = "color-swatch";
     swatch.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-    swatch.title = `#${index} â€” rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    swatch.title = `#${index} — rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
     swatch.dataset.index = index;
     if (index === selectedColorIndex) swatch.classList.add("active");
     swatch.addEventListener("click", () => {
@@ -468,7 +475,7 @@ function sincronizarMemoriaDesdeHistorial(rects) {
 }
 
 // ==========================================
-// COORDENADAS LÃ“GICAS
+// COORDENADAS LÓGICAS
 // ==========================================
 function getLogicalCoords(e) {
   const rect = canvas.getBoundingClientRect();
@@ -489,6 +496,7 @@ function getLogicalCoords(e) {
 function setupEventListeners() {
   canvas.addEventListener("mousemove", handlePointerMove);
   canvas.addEventListener("mousedown", handlePointerDown);
+  canvas.addEventListener("mouseup", handlePointerUp);
   canvas.addEventListener("mouseleave", handlePointerLeave);
   canvas.addEventListener(
     "touchmove",
@@ -506,14 +514,25 @@ function setupEventListeners() {
     },
     { passive: false },
   );
+  canvas.addEventListener("touchend", handlePointerUp);
 
   btnToggleGrid.addEventListener("click", toggleGrid);
   btnClear.addEventListener("click", clearCanvas);
   btnExport.addEventListener("click", exportASM);
 
+  const btnImportTrigger = document.getElementById("btn-import-trigger");
+  const importFileInput = document.getElementById("import-file-input");
+  if (btnImportTrigger && importFileInput) {
+    btnImportTrigger.addEventListener("click", () => {
+      importFileInput.click();
+    });
+    importFileInput.addEventListener("change", handleImportZIP);
+  }
+
   btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
   btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
   btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
+  btnModeSelect.addEventListener("click", () => setDrawingMode("select"));
   btnCreateTemplate.addEventListener("click", createTemplateFromCurrentDrawing);
 
   btnAddFrame.addEventListener("click", () => {
@@ -533,19 +552,26 @@ function setDrawingMode(mode) {
   drawingState.isFirstClickFixed = false;
   drawingState.startPoint = null;
   drawingState.hoverPoint = null;
+  activeSelectedSpriteId = null; // Deseleccionar al cambiar de modo
 
-  [btnModeRect, btnModeSingle, btnModeStamp].forEach((b) => {
-    b.classList.remove("btn-primary", "active");
-    b.classList.add("btn-secondary");
+  [btnModeRect, btnModeSingle, btnModeStamp, btnModeSelect].forEach((b) => {
+    if (b) {
+      b.classList.remove("btn-primary", "active");
+      b.classList.add("btn-secondary");
+    }
   });
 
   const targets = {
     rect: btnModeRect,
     single: btnModeSingle,
     stamp: btnModeStamp,
+    select: btnModeSelect,
   };
-  targets[mode].classList.remove("btn-secondary");
-  targets[mode].classList.add("btn-primary", "active");
+  
+  if (targets[mode]) {
+    targets[mode].classList.remove("btn-secondary");
+    targets[mode].classList.add("btn-primary", "active");
+  }
 
   if (mode === "stamp" && selectedTemplateId === null && templates.length > 0) {
     selectedTemplateId = templates[0].id;
@@ -561,6 +587,19 @@ function handlePointerMove(e) {
   const coords = getLogicalCoords(e);
   drawingState.hoverPoint = coords;
 
+  if (isDraggingSprite && activeSelectedSpriteId !== null) {
+    const layer = getActiveEditingLayer();
+    if (layer && layer.sprites) {
+      const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+      if (sprite) {
+        sprite.x = clamp(coords.x - dragOffset.x, 0, canvas.width - 1);
+        sprite.y = clamp(coords.y - dragOffset.y, 0, canvas.height - 1);
+        draw();
+        updateHistoryUI();
+      }
+    }
+  }
+
   let hoveredInfo = null;
   const currentFrameIndex = editingBackground
     ? -1
@@ -574,12 +613,12 @@ function handlePointerMove(e) {
   if (bgRect) {
     const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
     hoveredInfo = {
-      label: `ðŸŒ„ Fondo | idx:${bgRect.colorIndex}`,
+      label: `🌅 Fondo | idx:${bgRect.colorIndex}`,
       color: `rgb(${r},${g},${b})`,
     };
   }
 
-  // Buscar en frames visibles (el mÃ¡s reciente tiene prioridad)
+  // Buscar en frames visibles (el más reciente tiene prioridad)
   for (let i = visibleIndices.length - 1; i >= 0; i--) {
     const fi = visibleIndices[i];
     const frame = frames[fi];
@@ -588,7 +627,7 @@ function handlePointerMove(e) {
     if (found) {
       const [r, g, b] = VGA_PALETTE[found.colorIndex];
       hoveredInfo = {
-        label: `ðŸ“½ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`,
+        label: `🎞️ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`,
         color: `rgb(${r},${g},${b})`,
       };
       break;
@@ -607,6 +646,10 @@ function handlePointerLeave() {
   drawingState.hoverPoint = null;
   hideCanvasTooltip();
   draw();
+}
+
+function handlePointerUp() {
+  isDraggingSprite = false;
 }
 
 function showCanvasTooltip(cx, cy, info) {
@@ -652,19 +695,69 @@ function getVisibleFrameIndices() {
   return indices;
 }
 
+function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
+  sprite.rects.forEach(rect => {
+    let fillColor;
+    if (mixBlue) {
+      const [r, g, b] = VGA_PALETTE[rect.colorIndex];
+      const mix = mixBlue;
+      const nr = Math.round(r * (1 - mix) + 60 * mix);
+      const ng = Math.round(g * (1 - mix) + 80 * mix);
+      const nb = Math.round(b * (1 - mix) + 200 * mix);
+      fillColor = `rgb(${nr},${ng},${nb})`;
+    } else {
+      fillColor = vgaColor(rect.colorIndex);
+    }
+    ctx.fillStyle = fillColor;
+    ctx.globalAlpha = opacity;
+    
+    const x1 = clamp(rect.x1 + sprite.x, 0, canvas.width - 1);
+    const y1 = clamp(rect.y1 + sprite.y, 0, canvas.height - 1);
+    const x2 = clamp(rect.x2 + sprite.x, 0, canvas.width - 1);
+    const y2 = clamp(rect.y2 + sprite.y, 0, canvas.height - 1);
+    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+    ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+  });
+  
+  ctx.globalAlpha = 1.0;
+  // Resaltado de selección si es la capa que se está editando
+  if (isLayerEditable && activeSelectedSpriteId === sprite.id) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    sprite.rects.forEach(r => {
+      const x1 = r.x1 + sprite.x;
+      const x2 = r.x2 + sprite.x;
+      const y1 = r.y1 + sprite.y;
+      const y2 = r.y2 + sprite.y;
+      minX = Math.min(minX, x1, x2);
+      maxX = Math.max(maxX, x1, x2);
+      minY = Math.min(minY, y1, y2);
+      maxY = Math.max(maxY, y1, y2);
+    });
+    ctx.strokeStyle = "#a855f7"; // Violeta/Morado
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(minX - 1.5, minY - 1.5, maxX - minX + 4, maxY - minY + 4);
+    ctx.setLineDash([]);
+  }
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const currentFrameIndex = editingBackground
-    ? frames.length > 0
-      ? frames.length - 1
-      : -1
+    ? (frames.length > 0 ? frames.length - 1 : -1)
     : frames.findIndex((f) => f.id === activeFrameId);
 
   // 1. Fondo siempre al 100%
   if (backgroundLayer.visible) {
     ctx.globalAlpha = 1.0;
     backgroundLayer.rectangles.forEach((rect) => drawRect(rect));
+    if (backgroundLayer.sprites) {
+      backgroundLayer.sprites.forEach((sprite) => {
+        drawSprite(sprite, 1.0, null, editingBackground);
+      });
+    }
   }
 
   // 2. Frames con onion skinning
@@ -674,28 +767,41 @@ function draw() {
     if (!frame || !frame.visible) return;
     const isCurrentFrame = fi === currentFrameIndex;
     const distance = currentFrameIndex - fi;
+    const isEditable = !editingBackground && activeFrameId === frame.id;
 
     if (isCurrentFrame) {
       ctx.globalAlpha = 1.0;
       frame.rectangles.forEach((rect) => drawRect(rect));
+      if (frame.sprites) {
+        frame.sprites.forEach((sprite) => {
+          drawSprite(sprite, 1.0, null, isEditable);
+        });
+      }
     } else {
       const opacitySteps = [0.35, 0.2, 0.1, 0.05];
-      ctx.globalAlpha =
-        opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      const opacity = opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      const mixBlue = Math.min(0.5, distance * 0.2);
+
       frame.rectangles.forEach((rect) => {
         // Tinte azul para onion skin
         const [r, g, b] = VGA_PALETTE[rect.colorIndex];
-        const mix = Math.min(0.5, distance * 0.2);
-        const nr = Math.round(r * (1 - mix) + 60 * mix);
-        const ng = Math.round(g * (1 - mix) + 80 * mix);
-        const nb = Math.round(b * (1 - mix) + 200 * mix);
+        const nr = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
+        const ng = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
+        const nb = Math.round(b * (1 - mixBlue) + 200 * mixBlue);
         ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+        ctx.globalAlpha = opacity;
         const minX = Math.min(rect.x1, rect.x2),
           maxX = Math.max(rect.x1, rect.x2);
         const minY = Math.min(rect.y1, rect.y2),
           maxY = Math.max(rect.y1, rect.y2);
         ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
       });
+
+      if (frame.sprites) {
+        frame.sprites.forEach((sprite) => {
+          drawSprite(sprite, opacity, mixBlue, false);
+        });
+      }
     }
   });
 
@@ -788,6 +894,32 @@ function clamp(v, mn, mx) {
   return Math.max(mn, Math.min(v, mx));
 }
 
+/**
+ * Busca un sprite que contenga las coordenadas dadas
+ */
+function getSpriteAtCoords(layer, coords) {
+  if (!layer || !layer.sprites) return null;
+  // Buscar del último al primero (el de arriba primero)
+  for (let i = layer.sprites.length - 1; i >= 0; i--) {
+    const s = layer.sprites[i];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    s.rects.forEach(r => {
+      const x1 = r.x1 + s.x;
+      const x2 = r.x2 + s.x;
+      const y1 = r.y1 + s.y;
+      const y2 = r.y2 + s.y;
+      minX = Math.min(minX, x1, x2);
+      maxX = Math.max(maxX, x1, x2);
+      minY = Math.min(minY, y1, y2);
+      maxY = Math.max(maxY, y1, y2);
+    });
+    if (coords.x >= minX && coords.x <= maxX && coords.y >= minY && coords.y <= maxY) {
+      return s;
+    }
+  }
+  return null;
+}
+
 // ==========================================
 // EVENTOS DE DIBUJO
 // ==========================================
@@ -796,6 +928,23 @@ function handlePointerDown(e) {
   const layer = getActiveEditingLayer();
   if (!layer) return;
 
+  if (drawingMode === "select") {
+    const sprite = getSpriteAtCoords(layer, coords);
+    if (sprite) {
+      activeSelectedSpriteId = sprite.id;
+      isDraggingSprite = true;
+      dragOffset = {
+        x: coords.x - sprite.x,
+        y: coords.y - sprite.y
+      };
+    } else {
+      activeSelectedSpriteId = null;
+    }
+    draw();
+    updateHistoryUI();
+    return;
+  }
+
   if (drawingMode === "stamp") {
     if (selectedTemplateId === null) {
       alert("Selecciona una plantilla primero.");
@@ -803,20 +952,25 @@ function handlePointerDown(e) {
     }
     const tmpl = templates.find((t) => t.id === selectedTemplateId);
     if (!tmpl) return;
-    tmpl.rects.forEach((r) => {
+    
+    const newSprite = {
+      id: ++spriteIdCounter,
+      name: tmpl.name,
+      x: coords.x,
+      y: coords.y,
+      width: tmpl.width,
+      height: tmpl.height,
+      rects: tmpl.rects.map(r => ({ ...r }))
+    };
+    
+    if (!layer.sprites) layer.sprites = [];
+    layer.sprites.push(newSprite);
+    
+    tmpl.rects.forEach(r => {
       const tipo = getTipoInstruccion(r) || "DRAW_REGION";
-      layer.rectangles.push({
-        id: ++rectangleIdCounter,
-        type: r.type,
-        x1: clamp(r.x1 + coords.x, 0, canvas.width - 1),
-        y1: clamp(r.y1 + coords.y, 0, canvas.height - 1),
-        x2: clamp(r.x2 + coords.x, 0, canvas.width - 1),
-        y2: clamp(r.y2 + coords.y, 0, canvas.height - 1),
-        colorIndex: r.colorIndex,
-      });
       agregarInstruccion(tipo);
     });
-    optimizeRectangles(layer);
+
     draw();
     updateHistoryUI();
     updateFramesUI();
@@ -867,7 +1021,7 @@ function handlePointerDown(e) {
 }
 
 // ==========================================
-// OPTIMIZACIÃ“N
+// OPTIMIZACIÓN
 // ==========================================
 function optimizeRectangles(layer) {
   if (!layer || layer.rectangles.length < 2) return;
@@ -889,7 +1043,7 @@ function optimizeRectangles(layer) {
 }
 
 // ==========================================
-// GESTIÃ“N DE CAPAS / FRAMES
+// GESTIÓN DE CAPAS / FRAMES
 // ==========================================
 function getActiveEditingLayer() {
   if (editingBackground) return backgroundLayer;
@@ -953,7 +1107,7 @@ function deleteFrameById(id) {
   }
   const f = frames.find((f) => f.id === id);
   if (!f) return;
-  if (confirm(`Â¿Eliminar "${f.name}"?`)) {
+  if (confirm(`¿Eliminar "${f.name}"?`)) {
     frames = frames.filter((f) => f.id !== id);
     if (activeFrameId === id) switchToFrame(frames[frames.length - 1].id);
     else {
@@ -979,11 +1133,11 @@ function toggleOnionSkin() {
   onionSkinEnabled = !onionSkinEnabled;
   if (onionSkinEnabled) {
     btnToggleOnion.classList.replace("btn-secondary", "btn-primary");
-    btnToggleOnion.innerHTML = '<span class="btn-icon">ðŸ§…</span> Cebolla: ON';
+    btnToggleOnion.innerHTML = '<span class="btn-icon">🧅</span> Cebolla: ON';
   } else {
     btnToggleOnion.classList.replace("btn-primary", "btn-secondary");
     btnToggleOnion.innerHTML =
-      '<span class="btn-icon">ðŸ§…</span> Cebolla: OFF';
+      '<span class="btn-icon">🧅</span> Cebolla: OFF';
   }
   draw();
 }
@@ -994,11 +1148,11 @@ function toggleOnionSkin() {
 function updateActiveLayerLabel() {
   if (!activeLayerLabel) return;
   if (editingBackground) {
-    activeLayerLabel.textContent = "âœï¸ Editando: Fondo";
+    activeLayerLabel.textContent = "✏️ Editando: Fondo";
     activeLayerLabel.style.color = "#fbbf24";
   } else {
     const f = getActiveFrame();
-    activeLayerLabel.textContent = f ? `âœï¸ Editando: ${f.name}` : "â€”";
+    activeLayerLabel.textContent = f ? `✏️ Editando: ${f.name}` : "—";
     activeLayerLabel.style.color = "#818cf8";
   }
 }
@@ -1040,7 +1194,7 @@ function updateHistoryUI() {
     if (isPixel) {
       coordsSpan.innerHTML = `P${idx + 1}: (${rect.x1}),(${rect.y1})`;
     } else {
-      coordsSpan.innerHTML = `R${idx + 1}: [${rect.x1},${rect.y1}]â†’[${rect.x2},${rect.y2}]`;
+      coordsSpan.innerHTML = `R${idx + 1}: [${rect.x1},${rect.y1}] → [${rect.x2},${rect.y2}]`;
     }
 
     const colorSpan = document.createElement("span");
@@ -1054,7 +1208,7 @@ function updateHistoryUI() {
     const del = document.createElement("button");
     del.className = "btn-delete-item";
     del.title = "Eliminar";
-    del.innerHTML = "âŒ";
+    del.innerHTML = "❌";
     del.addEventListener("click", (e) => {
       e.stopPropagation();
       eliminarInstruccion(getTipoInstruccion(rect));
@@ -1078,14 +1232,14 @@ function updateFramesUI() {
   const bgItem = document.createElement("li");
   bgItem.className =
     "layer-item frame-bg-item" + (editingBackground ? " active" : "");
-  bgItem.title = "Capa de Fondo â€” aparece en todos los frames";
+  bgItem.title = "Capa de Fondo — aparece en todos los frames";
   bgItem.addEventListener("click", () => switchToBackground());
 
   const bgLeft = document.createElement("div");
   bgLeft.className = "layer-item-left";
   const bgVis = document.createElement("button");
   bgVis.className = "btn-layer-visibility";
-  bgVis.innerHTML = backgroundLayer.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
+  bgVis.innerHTML = backgroundLayer.visible ? "👁️" : "🕶️";
   bgVis.addEventListener("click", (e) => {
     e.stopPropagation();
     backgroundLayer.visible = !backgroundLayer.visible;
@@ -1094,7 +1248,7 @@ function updateFramesUI() {
   });
   const bgLabel = document.createElement("span");
   bgLabel.className = "layer-name-display bg-label";
-  bgLabel.innerHTML = `ðŸŒ„ Fondo <small class="badge-persistent">[persistente]</small>`;
+  bgLabel.innerHTML = `🌅 Fondo <small class="badge-persistent">[persistente]</small>`;
   bgLeft.appendChild(bgVis);
   bgLeft.appendChild(bgLabel);
 
@@ -1112,10 +1266,10 @@ function updateFramesUI() {
   // Separador
   const sep = document.createElement("li");
   sep.className = "frames-separator";
-  sep.innerHTML = `â”€â”€ Frames (${frames.length}) â”€â”€`;
+  sep.innerHTML = `── Frames (${frames.length}) ──`;
   framesList.appendChild(sep);
 
-  // Frames (mÃ¡s reciente arriba)
+  // Frames (más reciente arriba)
   [...frames].reverse().forEach((frame, ri) => {
     const item = document.createElement("li");
     item.className =
@@ -1127,7 +1281,7 @@ function updateFramesUI() {
     left.className = "layer-item-left";
     const visBtn = document.createElement("button");
     visBtn.className = "btn-layer-visibility";
-    visBtn.innerHTML = frame.visible ? "ðŸ‘ï¸" : "ðŸ•¶ï¸";
+    visBtn.innerHTML = frame.visible ? "👁️" : "🕶️";
     visBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleFrameVisibility(frame.id);
@@ -1156,7 +1310,7 @@ function updateFramesUI() {
     cnt.textContent = `${frame.rectangles.length}r`;
     const del = document.createElement("button");
     del.className = "btn-layer-control delete";
-    del.innerHTML = "ðŸ—‘ï¸";
+    del.innerHTML = "🗑️";
     del.title = "Eliminar frame";
     del.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1181,12 +1335,12 @@ function toggleGrid() {
   if (gridActive) {
     canvasOverlay.classList.add("grid-active");
     btnToggleGrid.innerHTML =
-      '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: ON';
+      '<span class="btn-icon">🌐</span> Cuadrícula: ON';
     btnToggleGrid.classList.replace("btn-secondary", "btn-primary");
   } else {
     canvasOverlay.classList.remove("grid-active");
     btnToggleGrid.innerHTML =
-      '<span class="btn-icon">ðŸŒ</span> CuadrÃ­cula: OFF';
+      '<span class="btn-icon">🌐</span> Cuadrícula: OFF';
     btnToggleGrid.classList.replace("btn-primary", "btn-secondary");
   }
 }
@@ -1195,7 +1349,7 @@ function clearCanvas() {
   const layer = getActiveEditingLayer();
   if (!layer || layer.rectangles.length === 0) return;
   const name = editingBackground ? "Fondo" : getActiveFrame()?.name || "";
-  if (confirm(`Â¿Limpiar todos los elementos de "${name}"?`)) {
+  if (confirm(`¿Limpiar todos los elementos de "${name}"?`)) {
     layer.rectangles.forEach((rect) =>
       eliminarInstruccion(getTipoInstruccion(rect)),
     );
@@ -1211,8 +1365,8 @@ function clearCanvas() {
 // ==========================================
 
 /**
- * Convierte un Ã­ndice de color (0-255) al formato (XXXX)H
- * Ej: 255 â†’ "(00FF)H",  16 â†’ "(0010)H"
+ * Convierte un índice de color (0-255) al formato (XXXX)H
+ * Ej: 255 → "(00FF)H",  16 → "(0010)H"
  */
 function colorToASMHex(colorIndex) {
   const hex = colorIndex.toString(16).toUpperCase().padStart(4, "0");
@@ -1239,11 +1393,11 @@ function buildCommandsBlock(rects) {
       commands += `    DRAW_REGION ${x1},${y1}, ${x2},${y2} , ${colorHex}\n`;
     }
   });
-  return commands || "    ; (capa vacÃ­a)\n";
+  return commands || "    ; (capa vacía)\n";
 }
 
 /**
- * Genera fondo.asm â€” Capa de fondo persistente.
+ * Genera fondo.asm — Capa de fondo persistente.
  * Proc name: "fondo"
  */
 function generateFondoASM(rects) {
@@ -1272,9 +1426,9 @@ function generateFondoASM(rects) {
 }
 
 /**
- * Genera F1.asm â€¦ Fn.asm â€” Un frame de animaciÃ³n.
+ * Genera F1.asm ... Fn.asm — Un frame de animación.
  * @param {string} procName  "F1", "F2", etc.
- * @param {Array}  rects     rectÃ¡ngulos del frame
+ * @param {Array}  rects     rectángulos del frame
  */
 function generateFrameASM(procName, rects) {
   const commands = buildCommandsBlock(rects);
@@ -1302,10 +1456,10 @@ function generateFrameASM(procName, rects) {
 }
 
 /**
- * Genera Orquesta.asm â€” Archivo principal orquestador.
+ * Genera Orquesta.asm — Archivo principal orquestador.
  * Estructura:
  *   EXTRN fondo:FAR
- *   EXTRN F1:FAR â€¦ EXTRN Fn:FAR
+ *   EXTRN F1:FAR ... EXTRN Fn:FAR
  *   ...
  *   CALL fondo
  *       CALL F1
@@ -1315,16 +1469,16 @@ function generateFrameASM(procName, rects) {
  *       PAUSA 2
  *   (para cada frame)
  *
- * @param {number} frameCount â€” nÃºmero de frames (F1..Fn)
+ * @param {number} frameCount — número de frames (F1..Fn)
  */
 function generateOrquestaASM(frameCount) {
-  // â”€â”€ EXTRN block â”€â”€
+  // ── EXTRN block ──
   let extrns = "EXTRN fondo:FAR\n";
   for (let i = 1; i <= frameCount; i++) {
     extrns += `EXTRN F${i}:FAR\n`;
   }
 
-  // â”€â”€ CALL block: por cada frame â†’ CALL fondo + CALL Fn + PAUSA 2 â”€â”€
+  // ── CALL block: por cada frame → CALL fondo + CALL Fn + PAUSA 2 ──
   let calls = "";
   for (let i = 1; i <= frameCount; i++) {
     calls += `    CALL fondo\n    CALL F${i}\n    PAUSA 2\n`;
@@ -1421,11 +1575,12 @@ function generateLinkResponse(frameCount) {
       .join("\r\n") + "\r\n"
   );
 }
+
 /**
  * Exporta todos los archivos .asm en un ZIP:
- *   fondo.asm     â€” capa de fondo
- *   F1.asm â€¦ Fn.asm â€” frames de animaciÃ³n
- *   Orquesta.asm  â€” orquestador principal
+ *   fondo.asm     — capa de fondo
+ *   F1.asm ... Fn.asm — frames de animación
+ *   Orquesta.asm  — orquestador principal
  */
 async function exportASM() {
   // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
@@ -1508,13 +1663,13 @@ function updateTemplatesUI() {
     nm.textContent = tmpl.name;
     const inf = document.createElement("span");
     inf.className = "template-info";
-    inf.textContent = `${tmpl.rects.length} rects (${tmpl.width}Ã—${tmpl.height})`;
+    inf.textContent = `${tmpl.rects.length} rects (${tmpl.width}×${tmpl.height})`;
     det.appendChild(nm);
     det.appendChild(inf);
 
     const del = document.createElement("button");
     del.className = "btn-delete-template";
-    del.innerHTML = "ðŸ—‘ï¸";
+    del.innerHTML = "🗑️";
     del.addEventListener("click", (e) => {
       e.stopPropagation();
       deleteTemplateById(tmpl.id);
@@ -1581,6 +1736,162 @@ function deleteTemplateById(id) {
     selectedTemplateId = templates.length > 0 ? templates[0].id : null;
   updateTemplatesUI();
   draw();
+}
+
+// ==========================================
+// IMPORTACIÓN DE PROYECTO
+// ==========================================
+
+/**
+ * Parsea una línea de código ASM buscando instrucciones DRAW_REGION o PINTAR_PIXEL
+ */
+function parseAsmLine(line) {
+  const cleanLine = line.split(";")[0].trim();
+  if (!cleanLine) return null;
+
+  // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL) - ej: PINTAR_PIXEL (10), (20), (15)
+  // Permite paréntesis opcionales y espacios flexibles
+  const pixelRegex = /PINTAR_PIXEL\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?/i;
+
+  // DRAW_REGION X1,Y1, X2,Y2 , COLOR_HEX - ej: DRAW_REGION 10,20, 30,40 , 00FFH o (00FF)H
+  const rectRegex = /DRAW_REGION\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\(?\s*([0-9A-F]+)\s*\)?H/i;
+
+  let match = cleanLine.match(pixelRegex);
+  if (match) {
+    const x = parseInt(match[1], 10);
+    const y = parseInt(match[2], 10);
+    const colorIndex = parseInt(match[3], 10);
+    return {
+      id: 0,
+      type: "pixel",
+      x1: x,
+      y1: y,
+      x2: x,
+      y2: y,
+      colorIndex: colorIndex
+    };
+  }
+
+  match = cleanLine.match(rectRegex);
+  if (match) {
+    const x1 = parseInt(match[1], 10);
+    const y1 = parseInt(match[2], 10);
+    const x2 = parseInt(match[3], 10);
+    const y2 = parseInt(match[4], 10);
+    const colorIndex = parseInt(match[5], 16);
+    return {
+      id: 0,
+      type: "rect",
+      x1: x1,
+      y1: y1,
+      x2: x2,
+      y2: y2,
+      colorIndex: colorIndex
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Parsea el contenido de un archivo .asm para extraer los rectángulos o píxeles
+ */
+function parseAsmContent(content) {
+  const lines = content.split(/\r?\n/);
+  const rectangles = [];
+  for (let line of lines) {
+    const rect = parseAsmLine(line);
+    if (rect) {
+      rectangles.push(rect);
+    }
+  }
+  return rectangles;
+}
+
+/**
+ * Maneja la importación de un archivo .zip que reconstruye la animación
+ */
+async function handleImportZIP(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (typeof JSZip === "undefined") {
+    alert("JSZip no está disponible en la página.");
+    return;
+  }
+
+  try {
+    const zip = await JSZip.loadAsync(file);
+
+    // 1. Cargar fondo.asm
+    const fondoFile = zip.file("fondo.asm");
+    if (!fondoFile) {
+      alert("No se encontró el archivo fondo.asm en el ZIP.");
+      return;
+    }
+    const fondoContent = await fondoFile.async("text");
+    const bgRectangles = parseAsmContent(fondoContent);
+
+    // 2. Cargar frames (F1.asm, F2.asm...)
+    const frameFiles = [];
+    zip.forEach((relativePath, zipEntry) => {
+      const match = relativePath.match(/^F(\d+)\.asm$/i);
+      if (match) {
+        frameFiles.push({
+          num: parseInt(match[1], 10),
+          entry: zipEntry
+        });
+      }
+    });
+
+    frameFiles.sort((a, b) => a.num - b.num);
+
+    if (frameFiles.length === 0) {
+      alert("No se encontraron archivos de frames de animación (F1.asm, F2.asm...) en el ZIP.");
+      return;
+    }
+
+    const importedFrames = [];
+    for (const fInfo of frameFiles) {
+      const content = await fInfo.entry.async("text");
+      const rects = parseAsmContent(content);
+      importedFrames.push({
+        id: fInfo.num,
+        name: `Frame ${fInfo.num}`,
+        rectangles: rects,
+        visible: true
+      });
+    }
+
+    // 3. Reemplazar estado de la aplicación
+    backgroundLayer.rectangles = bgRectangles;
+    
+    let localRectId = 0;
+    backgroundLayer.rectangles.forEach(r => {
+      r.id = ++localRectId;
+    });
+
+    frames = [];
+    frameIdCounter = 0;
+    importedFrames.forEach(f => {
+      f.id = ++frameIdCounter;
+      f.rectangles.forEach(r => {
+        r.id = ++localRectId;
+      });
+      frames.push(f);
+    });
+
+    rectangleIdCounter = localRectId;
+
+    // Volver a la capa de fondo y actualizar la UI
+    switchToBackground();
+    alert("Proyecto importado con éxito. Se detectó 1 capa de fondo y " + frames.length + " frame(s).");
+  } catch (err) {
+    console.error(err);
+    alert("Error al importar el archivo ZIP: " + err.message);
+  } finally {
+    e.target.value = "";
+  }
 }
 
 // ==========================================

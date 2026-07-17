@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -54,6 +54,13 @@
               title="Estampar plantilla guardada"
             >
               ⬛ Stamp
+            </button>
+            <button
+              id="btn-mode-select"
+              class="btn btn-secondary"
+              title="Seleccionar y mover sprites"
+            >
+              🎯 Seleccionar
             </button>
           </div>
           <button
@@ -234,10 +241,14 @@
             </div>
           </div>
 
-          <div class="sidebar-footer">
-            <button id="btn-export" class="btn btn-primary btn-block">
+          <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px; padding: 12px;">
+            <button id="btn-export" class="btn btn-primary btn-block" style="width: 100%;">
               <span class="btn-icon">📦</span> Exportar .ASM (ZIP)
             </button>
+            <button id="btn-import-trigger" class="btn btn-secondary btn-block" style="width: 100%;">
+              <span class="btn-icon">📥</span> Importar .ASM (ZIP)
+            </button>
+            <input type="file" id="import-file-input" accept=".zip" style="display: none;">
           </div>
         </aside>
       </div>
