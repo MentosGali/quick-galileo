@@ -606,16 +606,25 @@ function handlePointerMove(e) {
     : frames.findIndex((f) => f.id === activeFrameId);
   const visibleIndices = getVisibleFrameIndices();
 
-  // Buscar en fondo
-  const bgRect = backgroundLayer.rectangles.find((r) =>
-    isPointInRect(coords, r),
-  );
-  if (bgRect) {
-    const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
+  // Buscar en fondo (sprites primero, luego rects)
+  const bgSprite = getSpriteAtCoords(backgroundLayer, coords);
+  if (bgSprite) {
     hoveredInfo = {
-      label: `🌅 Fondo | idx:${bgRect.colorIndex}`,
-      color: `rgb(${r},${g},${b})`,
+      label: `🌅 Fondo | 🎭 Sprite: ${bgSprite.name || "Sprite"} (${bgSprite.x},${bgSprite.y})`,
+      color: `linear-gradient(135deg,#a855f7,#6366f1)`,
     };
+  }
+  if (!hoveredInfo) {
+    const bgRect = backgroundLayer.rectangles.find((r) =>
+      isPointInRect(coords, r),
+    );
+    if (bgRect) {
+      const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
+      hoveredInfo = {
+        label: `🌅 Fondo | idx:${bgRect.colorIndex}`,
+        color: `rgb(${r},${g},${b})`,
+      };
+    }
   }
 
   // Buscar en frames visibles (el más reciente tiene prioridad)
@@ -623,6 +632,17 @@ function handlePointerMove(e) {
     const fi = visibleIndices[i];
     const frame = frames[fi];
     if (!frame || !frame.visible) continue;
+    
+    // Primero buscar sprites
+    const frameSprite = getSpriteAtCoords(frame, coords);
+    if (frameSprite) {
+      hoveredInfo = {
+        label: `🎞️ ${frame.name} | 🎭 ${frameSprite.name || "Sprite"} (${frameSprite.x},${frameSprite.y})`,
+        color: `linear-gradient(135deg,#a855f7,#6366f1)`,
+      };
+      break;
+    }
+    
     const found = frame.rectangles.find((r) => isPointInRect(coords, r));
     if (found) {
       const [r, g, b] = VGA_PALETTE[found.colorIndex];
@@ -636,6 +656,11 @@ function handlePointerMove(e) {
 
   if (hoveredInfo) showCanvasTooltip(e.clientX, e.clientY, hoveredInfo);
   else hideCanvasTooltip();
+
+  // Cambiar cursor a "move" si estamos sobre un sprite de la capa activa
+  const activeLayer = getActiveEditingLayer();
+  const spriteUnderCursor = activeLayer ? getSpriteAtCoords(activeLayer, coords) : null;
+  canvas.style.cursor = spriteUnderCursor ? "move" : "crosshair";
 
   hoverCoordsEl.textContent = `X:${coords.x}  Y:${coords.y}${hoveredInfo ? "  |  " + hoveredInfo.label : ""}`;
   draw();
@@ -928,23 +953,37 @@ function handlePointerDown(e) {
   const layer = getActiveEditingLayer();
   if (!layer) return;
 
+  // ── Detección universal de sprites ──
+  // En CUALQUIER modo, si el usuario hace clic sobre un sprite existente,
+  // se selecciona y se inicia el arrastre inmediatamente (edición rápida).
+  const hitSprite = getSpriteAtCoords(layer, coords);
+  if (hitSprite) {
+    activeSelectedSpriteId = hitSprite.id;
+    isDraggingSprite = true;
+    dragOffset = {
+      x: coords.x - hitSprite.x,
+      y: coords.y - hitSprite.y,
+    };
+    draw();
+    updateHistoryUI();
+    return; // No ejecutar la herramienta de dibujo
+  }
+
+  // Si estamos en modo select y no tocamos ningún sprite → deseleccionar
   if (drawingMode === "select") {
-    const sprite = getSpriteAtCoords(layer, coords);
-    if (sprite) {
-      activeSelectedSpriteId = sprite.id;
-      isDraggingSprite = true;
-      dragOffset = {
-        x: coords.x - sprite.x,
-        y: coords.y - sprite.y
-      };
-    } else {
-      activeSelectedSpriteId = null;
-    }
+    activeSelectedSpriteId = null;
     draw();
     updateHistoryUI();
     return;
   }
 
+  // ── Deseleccionar sprite si hacemos clic en vacío con otra herramienta ──
+  if (activeSelectedSpriteId !== null) {
+    activeSelectedSpriteId = null;
+    updateHistoryUI();
+  }
+
+  // ── Herramientas de dibujo normales ──
   if (drawingMode === "stamp") {
     if (selectedTemplateId === null) {
       alert("Selecciona una plantilla primero.");
@@ -1020,6 +1059,7 @@ function handlePointerDown(e) {
   }
 }
 
+
 // ==========================================
 // OPTIMIZACIÓN
 // ==========================================
@@ -1059,6 +1099,7 @@ function addFrame(name) {
     id: ++frameIdCounter,
     name: name || `Frame ${frameIdCounter}`,
     rectangles: [],
+    sprites: [],
     visible: true,
   };
   frames.push(f);
@@ -1094,6 +1135,11 @@ function cloneActiveFrame() {
     id: ++frameIdCounter,
     name: `${af.name} (Copia)`,
     rectangles: af.rectangles.map((r) => ({ ...r, id: ++rectangleIdCounter })),
+    sprites: (af.sprites || []).map((s) => ({
+      ...s,
+      id: ++spriteIdCounter,
+      rects: s.rects.map((r) => ({ ...r })),
+    })),
     visible: true,
   };
   frames.push(newF);
@@ -1166,10 +1212,21 @@ function updateHistoryUI() {
     return;
   }
   const rects = layer.rectangles;
-  rectCountBadge.textContent = `${rects.length} ${rects.length === 1 ? "Rect" : "Rects"}`;
-  sincronizarMemoriaDesdeHistorial(rects);
+  const sprites = layer.sprites || [];
+  const totalRectCount = rects.length + sprites.reduce((a, s) => a + s.rects.length, 0);
+  const spriteCount = sprites.length;
+  let badgeText = `${totalRectCount} ${totalRectCount === 1 ? "Rect" : "Rects"}`;
+  if (spriteCount > 0) badgeText += ` · ${spriteCount} Spr`;
+  rectCountBadge.textContent = badgeText;
 
-  if (rects.length === 0) {
+  // Sincronizar memoria: rects sueltos + rects dentro de sprites
+  const allRectsForMemory = [
+    ...rects,
+    ...sprites.flatMap((s) => s.rects),
+  ];
+  sincronizarMemoriaDesdeHistorial(allRectsForMemory);
+
+  if (rects.length === 0 && sprites.length === 0) {
     const e = document.createElement("li");
     e.className = "empty-state";
     e.textContent = "No hay figuras en esta capa.";
@@ -1177,6 +1234,7 @@ function updateHistoryUI() {
     return;
   }
 
+  // --- Rectángulos sueltos ---
   rects.forEach((rect, idx) => {
     const item = document.createElement("li");
     item.className = "history-item";
@@ -1194,7 +1252,7 @@ function updateHistoryUI() {
     if (isPixel) {
       coordsSpan.innerHTML = `P${idx + 1}: (${rect.x1}),(${rect.y1})`;
     } else {
-      coordsSpan.innerHTML = `R${idx + 1}: [${rect.x1},${rect.y1}] → [${rect.x2},${rect.y2}]`;
+      coordsSpan.innerHTML = `R${idx + 1}: [${rect.x1},${rect.y1}] \u2192 [${rect.x2},${rect.y2}]`;
     }
 
     const colorSpan = document.createElement("span");
@@ -1208,7 +1266,7 @@ function updateHistoryUI() {
     const del = document.createElement("button");
     del.className = "btn-delete-item";
     del.title = "Eliminar";
-    del.innerHTML = "❌";
+    del.innerHTML = "\u274c";
     del.addEventListener("click", (e) => {
       e.stopPropagation();
       eliminarInstruccion(getTipoInstruccion(rect));
@@ -1222,7 +1280,106 @@ function updateHistoryUI() {
     item.appendChild(del);
     historyList.appendChild(item);
   });
+
+  // --- Separador si hay ambos ---
+  if (rects.length > 0 && sprites.length > 0) {
+    const sep = document.createElement("li");
+    sep.className = "history-separator";
+    sep.innerHTML = `<span style="color:#a5b4fc;font-size:10px;text-transform:uppercase;letter-spacing:1px;">── Sprites ──</span>`;
+    sep.style.cssText = "text-align:center;padding:6px 0;list-style:none;";
+    historyList.appendChild(sep);
+  }
+
+  // --- Sprites agrupados ---
+  sprites.forEach((sprite, sIdx) => {
+    // Cabecera del sprite (clic = seleccionar en canvas)
+    const header = document.createElement("li");
+    header.className = "history-item sprite-header" +
+      (activeSelectedSpriteId === sprite.id ? " sprite-selected" : "");
+    header.style.cssText = "cursor:pointer;border-left:3px solid #a855f7;";
+    header.addEventListener("click", () => {
+      activeSelectedSpriteId = sprite.id;
+      setDrawingMode("select");
+      draw();
+      updateHistoryUI();
+    });
+
+    const headerDetails = document.createElement("div");
+    headerDetails.className = "history-item-details";
+
+    const spriteIcon = document.createElement("div");
+    spriteIcon.className = "history-color-preview";
+    spriteIcon.style.cssText = "background:linear-gradient(135deg,#a855f7,#6366f1);border-radius:4px;";
+
+    const spriteLabel = document.createElement("span");
+    spriteLabel.className = "history-coords";
+    spriteLabel.innerHTML = `<strong style="color:#c4b5fd;">\ud83c\udfad Sprite ${sIdx + 1}</strong>` +
+      `<span style="color:#94a3b8;font-size:10px;"> ${sprite.name || ""} (${sprite.x},${sprite.y}) · ${sprite.rects.length}r</span>`;
+
+    headerDetails.appendChild(spriteIcon);
+    headerDetails.appendChild(spriteLabel);
+
+    // Botón eliminar sprite completo
+    const delSprite = document.createElement("button");
+    delSprite.className = "btn-delete-item";
+    delSprite.title = "Eliminar sprite completo";
+    delSprite.innerHTML = "\ud83d\uddd1\ufe0f";
+    delSprite.addEventListener("click", (e) => {
+      e.stopPropagation();
+      sprite.rects.forEach((r) =>
+        eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
+      );
+      layer.sprites = layer.sprites.filter((s) => s.id !== sprite.id);
+      if (activeSelectedSpriteId === sprite.id) activeSelectedSpriteId = null;
+      draw();
+      updateHistoryUI();
+      updateFramesUI();
+    });
+
+    header.appendChild(headerDetails);
+    header.appendChild(delSprite);
+    historyList.appendChild(header);
+
+    // Sub-items del sprite (sus rects individuales, con indentación)
+    sprite.rects.forEach((rect, rIdx) => {
+      const subItem = document.createElement("li");
+      subItem.className = "history-item sprite-sub-item" +
+        (activeSelectedSpriteId === sprite.id ? " sprite-selected-child" : "");
+      subItem.style.cssText = "padding-left:24px;opacity:0.85;border-left:3px solid rgba(168,85,247,0.3);";
+
+      const subDetails = document.createElement("div");
+      subDetails.className = "history-item-details";
+
+      const subPreview = document.createElement("div");
+      subPreview.className = "history-color-preview";
+      subPreview.style.backgroundColor = vgaColor(rect.colorIndex);
+
+      const subCoords = document.createElement("span");
+      subCoords.className = "history-coords";
+      // Mostrar coordenadas absolutas (relativas + offset)
+      const absX1 = rect.x1 + sprite.x;
+      const absY1 = rect.y1 + sprite.y;
+      const absX2 = rect.x2 + sprite.x;
+      const absY2 = rect.y2 + sprite.y;
+      if (rect.type === "pixel") {
+        subCoords.innerHTML = `  P: (${absX1}),(${absY1})`;
+      } else {
+        subCoords.innerHTML = `  R: [${absX1},${absY1}] \u2192 [${absX2},${absY2}]`;
+      }
+
+      const subColor = document.createElement("span");
+      subColor.className = "history-color-hex";
+      subColor.textContent = ` idx:${rect.colorIndex}`;
+
+      subCoords.appendChild(subColor);
+      subDetails.appendChild(subPreview);
+      subDetails.appendChild(subCoords);
+      subItem.appendChild(subDetails);
+      historyList.appendChild(subItem);
+    });
+  });
 }
+
 
 function updateFramesUI() {
   if (!framesList) return;
@@ -1256,7 +1413,8 @@ function updateFramesUI() {
   bgRight.className = "layer-item-right";
   const bgCount = document.createElement("span");
   bgCount.className = "layer-rect-count";
-  bgCount.textContent = `${backgroundLayer.rectangles.length}r`;
+  const bgSprCount = (backgroundLayer.sprites || []).length;
+  bgCount.textContent = `${backgroundLayer.rectangles.length}r${bgSprCount > 0 ? " · " + bgSprCount + "s" : ""}`;
   bgRight.appendChild(bgCount);
 
   bgItem.appendChild(bgLeft);
@@ -1307,7 +1465,8 @@ function updateFramesUI() {
     right.className = "layer-item-right";
     const cnt = document.createElement("span");
     cnt.className = "layer-rect-count";
-    cnt.textContent = `${frame.rectangles.length}r`;
+    const fSprCount = (frame.sprites || []).length;
+    cnt.textContent = `${frame.rectangles.length}r${fSprCount > 0 ? " · " + fSprCount + "s" : ""}`;
     const del = document.createElement("button");
     del.className = "btn-layer-control delete";
     del.innerHTML = "🗑️";
@@ -1347,13 +1506,20 @@ function toggleGrid() {
 
 function clearCanvas() {
   const layer = getActiveEditingLayer();
-  if (!layer || layer.rectangles.length === 0) return;
+  if (!layer) return;
+  const totalElements = layer.rectangles.length + (layer.sprites || []).length;
+  if (totalElements === 0) return;
   const name = editingBackground ? "Fondo" : getActiveFrame()?.name || "";
   if (confirm(`¿Limpiar todos los elementos de "${name}"?`)) {
     layer.rectangles.forEach((rect) =>
       eliminarInstruccion(getTipoInstruccion(rect)),
     );
+    (layer.sprites || []).forEach((sprite) =>
+      sprite.rects.forEach((r) => eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION")),
+    );
     layer.rectangles = [];
+    layer.sprites = [];
+    activeSelectedSpriteId = null;
     draw();
     updateHistoryUI();
     updateFramesUI();
@@ -1374,25 +1540,46 @@ function colorToASMHex(colorIndex) {
 }
 
 /**
- * Genera los comandos ASM (DRAW_REGION / PINTAR_PIXEL) de un array de rects.
+ * Genera un comando ASM para un solo rect, aplicando un offset de posición.
+ */
+function buildSingleRectCommand(rect, offsetX, offsetY) {
+  if (rect.type === "pixel") {
+    const px = rect.x1 + offsetX;
+    const py = rect.y1 + offsetY;
+    return `    PINTAR_PIXEL (${px}), (${py}), (${rect.colorIndex})`;
+  } else {
+    const x1 = Math.min(rect.x1, rect.x2) + offsetX;
+    const y1 = Math.min(rect.y1, rect.y2) + offsetY;
+    const x2 = Math.max(rect.x1, rect.x2) + offsetX;
+    const y2 = Math.max(rect.y1, rect.y2) + offsetY;
+    const colorHex = colorToASMHex(rect.colorIndex);
+    return `    DRAW_REGION ${x1},${y1}, ${x2},${y2} , ${colorHex}`;
+  }
+}
+
+/**
+ * Genera los comandos ASM (DRAW_REGION / PINTAR_PIXEL) de un layer completo.
+ * Incluye tanto rectangles sueltos como sprites agrupados con comentarios.
  * Devuelve solo el bloque de instrucciones, sin cabecera de archivo.
  */
-function buildCommandsBlock(rects) {
+function buildCommandsBlock(rects, sprites) {
   let commands = "";
+  const allSprites = sprites || [];
+
+  // 1. Rectángulos sueltos (no pertenecen a ningún sprite)
   rects.forEach((rect) => {
-    if (rect.type === "pixel") {
-      // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL)
-      commands += `    PINTAR_PIXEL (${rect.x1}), (${rect.y1}), (${rect.colorIndex})\n`;
-    } else {
-      const x1 = Math.min(rect.x1, rect.x2);
-      const y1 = Math.min(rect.y1, rect.y2);
-      const x2 = Math.max(rect.x1, rect.x2);
-      const y2 = Math.max(rect.y1, rect.y2);
-      const colorHex = colorToASMHex(rect.colorIndex);
-      // DRAW_REGION X1,Y1, X2,Y2 , (COLOR_HEX)H
-      commands += `    DRAW_REGION ${x1},${y1}, ${x2},${y2} , ${colorHex}\n`;
-    }
+    commands += buildSingleRectCommand(rect, 0, 0) + "\n";
   });
+
+  // 2. Sprites agrupados con comentarios
+  allSprites.forEach((sprite, idx) => {
+    commands += `\n    ; Sprite ${idx + 1} - ${sprite.name || "Sin nombre"} (pos: ${sprite.x},${sprite.y})\n`;
+    sprite.rects.forEach((rect) => {
+      commands += buildSingleRectCommand(rect, sprite.x, sprite.y) + "\n";
+    });
+    commands += `    ; Fin Sprite ${idx + 1}\n`;
+  });
+
   return commands || "    ; (capa vacía)\n";
 }
 
@@ -1400,8 +1587,8 @@ function buildCommandsBlock(rects) {
  * Genera fondo.asm — Capa de fondo persistente.
  * Proc name: "fondo"
  */
-function generateFondoASM(rects) {
-  const commands = buildCommandsBlock(rects);
+function generateFondoASM(rects, sprites) {
+  const commands = buildCommandsBlock(rects, sprites);
   return [
     "INCLUDE LIBRO.LIB",
     "INCLUDE M.LIB",
@@ -1430,8 +1617,8 @@ function generateFondoASM(rects) {
  * @param {string} procName  "F1", "F2", etc.
  * @param {Array}  rects     rectángulos del frame
  */
-function generateFrameASM(procName, rects) {
-  const commands = buildCommandsBlock(rects);
+function generateFrameASM(procName, rects, sprites) {
+  const commands = buildCommandsBlock(rects, sprites);
   return [
     "INCLUDE LIBRO.LIB",
     "INCLUDE M.LIB",
@@ -1585,7 +1772,7 @@ function generateLinkResponse(frameCount) {
 async function exportASM() {
   // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
   const allLayers = [backgroundLayer, ...frames];
-  const totalRects = allLayers.reduce((a, l) => a + l.rectangles.length, 0);
+  const totalRects = allLayers.reduce((a, l) => a + l.rectangles.length + (l.sprites || []).length, 0);
 
   if (totalRects === 0) {
     alert("No hay datos que exportar. Dibuja algo primero.");
@@ -1595,11 +1782,11 @@ async function exportASM() {
   // Generar archivos
   const files = {}; // { filename: content }
 
-  files["fondo.asm"] = generateFondoASM(backgroundLayer.rectangles);
+  files["fondo.asm"] = generateFondoASM(backgroundLayer.rectangles, backgroundLayer.sprites);
 
   frames.forEach((frame, i) => {
     const procName = `F${i + 1}`;
-    files[`${procName}.asm`] = generateFrameASM(procName, frame.rectangles);
+    files[`${procName}.asm`] = generateFrameASM(procName, frame.rectangles, frame.sprites || []);
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
@@ -1794,22 +1981,93 @@ function parseAsmLine(line) {
 }
 
 /**
- * Parsea el contenido de un archivo .asm para extraer los rectángulos o píxeles
+ * Parsea el contenido de un archivo .asm para extraer rectángulos sueltos y sprites agrupados.
+ * Detecta bloques "; Sprite N - ..." / "; Fin Sprite N" y los agrupa.
+ * @returns {{ rectangles: Array, sprites: Array }}
  */
-function parseAsmContent(content) {
+function parseAsmContentWithSprites(content) {
   const lines = content.split(/\r?\n/);
   const rectangles = [];
+  const sprites = [];
+  
+  let currentSprite = null; // { name, posX, posY, rects: [] }
+  
+  const spriteStartRegex = /;\s*Sprite\s+(\d+)\s*(?:-\s*(.*?))?(?:\(pos:\s*(\d+)\s*,\s*(\d+)\s*\))?/i;
+  const spriteEndRegex = /;\s*Fin\s+Sprite\s+\d+/i;
+  
   for (let line of lines) {
+    const trimmed = line.trim();
+    
+    // Check for sprite start comment
+    const startMatch = trimmed.match(spriteStartRegex);
+    if (startMatch) {
+      // If there was a previous unclosed sprite, close it
+      if (currentSprite && currentSprite.rects.length > 0) {
+        sprites.push(currentSprite);
+      }
+      const spriteName = (startMatch[2] || "").trim() || `Sprite ${startMatch[1]}`;
+      const posX = startMatch[3] ? parseInt(startMatch[3], 10) : 0;
+      const posY = startMatch[4] ? parseInt(startMatch[4], 10) : 0;
+      currentSprite = {
+        name: spriteName,
+        posX: posX,
+        posY: posY,
+        rects: [],
+      };
+      continue;
+    }
+    
+    // Check for sprite end comment
+    if (currentSprite && spriteEndRegex.test(trimmed)) {
+      if (currentSprite.rects.length > 0) {
+        sprites.push(currentSprite);
+      }
+      currentSprite = null;
+      continue;
+    }
+    
+    // Parse ASM instruction
     const rect = parseAsmLine(line);
     if (rect) {
-      rectangles.push(rect);
+      if (currentSprite) {
+        currentSprite.rects.push(rect);
+      } else {
+        rectangles.push(rect);
+      }
     }
   }
-  return rectangles;
+  
+  // Close any unclosed sprite
+  if (currentSprite && currentSprite.rects.length > 0) {
+    sprites.push(currentSprite);
+  }
+  
+  // Convert parsed sprites to the app format:
+  // The ASM has absolute coords; we need to compute relative coords based on sprite position
+  const appSprites = sprites.map((s) => {
+    const posX = s.posX;
+    const posY = s.posY;
+    return {
+      id: 0, // will be assigned later
+      name: s.name,
+      x: posX,
+      y: posY,
+      rects: s.rects.map((r) => ({
+        ...r,
+        x1: r.x1 - posX,
+        y1: r.y1 - posY,
+        x2: r.x2 - posX,
+        y2: r.y2 - posY,
+      })),
+    };
+  });
+  
+  return { rectangles, sprites: appSprites };
 }
 
 /**
- * Maneja la importación de un archivo .zip que reconstruye la animación
+ * Maneja la importación de un archivo .zip que reconstruye la animación.
+ * Soporta sprites agrupados con comentarios "; Sprite N".
  */
 async function handleImportZIP(e) {
   const file = e.target.files[0];
@@ -1830,7 +2088,7 @@ async function handleImportZIP(e) {
       return;
     }
     const fondoContent = await fondoFile.async("text");
-    const bgRectangles = parseAsmContent(fondoContent);
+    const bgParsed = parseAsmContentWithSprites(fondoContent);
 
     // 2. Cargar frames (F1.asm, F2.asm...)
     const frameFiles = [];
@@ -1854,38 +2112,44 @@ async function handleImportZIP(e) {
     const importedFrames = [];
     for (const fInfo of frameFiles) {
       const content = await fInfo.entry.async("text");
-      const rects = parseAsmContent(content);
+      const parsed = parseAsmContentWithSprites(content);
       importedFrames.push({
         id: fInfo.num,
         name: `Frame ${fInfo.num}`,
-        rectangles: rects,
+        rectangles: parsed.rectangles,
+        sprites: parsed.sprites,
         visible: true
       });
     }
 
     // 3. Reemplazar estado de la aplicación
-    backgroundLayer.rectangles = bgRectangles;
-    
     let localRectId = 0;
-    backgroundLayer.rectangles.forEach(r => {
-      r.id = ++localRectId;
-    });
+    let localSpriteId = 0;
+    
+    backgroundLayer.rectangles = bgParsed.rectangles;
+    backgroundLayer.rectangles.forEach(r => { r.id = ++localRectId; });
+    backgroundLayer.sprites = bgParsed.sprites;
+    backgroundLayer.sprites.forEach(s => { s.id = ++localSpriteId; });
 
     frames = [];
     frameIdCounter = 0;
     importedFrames.forEach(f => {
       f.id = ++frameIdCounter;
-      f.rectangles.forEach(r => {
-        r.id = ++localRectId;
-      });
+      f.rectangles.forEach(r => { r.id = ++localRectId; });
+      (f.sprites || []).forEach(s => { s.id = ++localSpriteId; });
       frames.push(f);
     });
 
     rectangleIdCounter = localRectId;
+    spriteIdCounter = localSpriteId;
+    activeSelectedSpriteId = null;
 
     // Volver a la capa de fondo y actualizar la UI
     switchToBackground();
-    alert("Proyecto importado con éxito. Se detectó 1 capa de fondo y " + frames.length + " frame(s).");
+    const totalSprites = bgParsed.sprites.length + importedFrames.reduce((a, f) => a + (f.sprites || []).length, 0);
+    let msg = `Proyecto importado con éxito.\n1 capa de fondo y ${frames.length} frame(s).`;
+    if (totalSprites > 0) msg += `\n${totalSprites} sprite(s) detectados.`;
+    alert(msg);
   } catch (err) {
     console.error(err);
     alert("Error al importar el archivo ZIP: " + err.message);
@@ -1894,7 +2158,46 @@ async function handleImportZIP(e) {
   }
 }
 
+/**
+ * Elimina el sprite actualmente seleccionado de la capa activa.
+ */
+function deleteSelectedSprite() {
+  if (activeSelectedSpriteId === null) return;
+  const layer = getActiveEditingLayer();
+  if (!layer || !layer.sprites) return;
+  
+  const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+  if (!sprite) return;
+  
+  sprite.rects.forEach((r) =>
+    eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
+  );
+  layer.sprites = layer.sprites.filter((s) => s.id !== activeSelectedSpriteId);
+  activeSelectedSpriteId = null;
+  draw();
+  updateHistoryUI();
+  updateFramesUI();
+}
+
 // ==========================================
 // ARRANCAR
 // ==========================================
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (e) => {
+  // Delete / Suprimir → eliminar sprite seleccionado
+  if ((e.key === "Delete" || e.key === "Backspace") && activeSelectedSpriteId !== null) {
+    // No interceptar si el foco está en un input/textarea
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    e.preventDefault();
+    deleteSelectedSprite();
+  }
+  // Escape → deseleccionar sprite
+  if (e.key === "Escape" && activeSelectedSpriteId !== null) {
+    activeSelectedSpriteId = null;
+    draw();
+    updateHistoryUI();
+  }
+});
+
 window.addEventListener("DOMContentLoaded", init);
