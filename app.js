@@ -339,6 +339,60 @@ let templateIdCounter = 0;
 let canvasTooltip = null;
 
 // ==========================================
+// ESTADO Y LÓGICA DEL MODO 2: TEXTO 80x25
+// ==========================================
+let currentEnvironment = "video"; // "video" | "text"
+
+let mode2Fields = [
+  {
+    id: 1,
+    varName: "boleto",
+    label: "Boleto:",
+    maxLen: 2,
+    row: 5,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "016H",
+    colorCampo: "016H",
+  },
+  {
+    id: 2,
+    varName: "destino",
+    label: "Destino:",
+    maxLen: 16,
+    row: 10,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "21H",
+    colorCampo: "21H",
+  },
+  {
+    id: 3,
+    varName: "precio",
+    label: "Precio:",
+    maxLen: 4,
+    row: 16,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "21H",
+    colorCampo: "21H",
+  },
+];
+let textFieldsIdCounter = 3;
+
+// Colores aproximados de los atributos de color BIOS
+const BIOS_ATTR_COLORS = {
+  "71H": { bg: "#c0c0c0", fg: "#0000aa" },
+  "00CH": { bg: "#000000", fg: "#ff5555" },
+  "016H": { bg: "#0000aa", fg: "#55ffff" },
+  "21H": { bg: "#00aa00", fg: "#0000aa" },
+  "4EH": { bg: "#aa0000", fg: "#ffff55" },
+  "1FH": { bg: "#0000aa", fg: "#ffffff" },
+  "70H": { bg: "#c0c0c0", fg: "#000000" },
+  "0FH": { bg: "#000000", fg: "#ffffff" },
+};
+
+// ==========================================
 // ELEMENTOS DEL DOM
 // ==========================================
 const canvas = document.getElementById("pixel-canvas");
@@ -494,31 +548,33 @@ function getLogicalCoords(e) {
 // EVENTOS
 // ==========================================
 function setupEventListeners() {
-  canvas.addEventListener("mousemove", handlePointerMove);
-  canvas.addEventListener("mousedown", handlePointerDown);
-  canvas.addEventListener("mouseup", handlePointerUp);
-  canvas.addEventListener("mouseleave", handlePointerLeave);
-  canvas.addEventListener(
-    "touchmove",
-    (e) => {
-      e.preventDefault();
-      handlePointerMove(e);
-    },
-    { passive: false },
-  );
-  canvas.addEventListener(
-    "touchstart",
-    (e) => {
-      e.preventDefault();
-      handlePointerDown(e);
-    },
-    { passive: false },
-  );
-  canvas.addEventListener("touchend", handlePointerUp);
+  if (canvas) {
+    canvas.addEventListener("mousemove", handlePointerMove);
+    canvas.addEventListener("mousedown", handlePointerDown);
+    canvas.addEventListener("mouseup", handlePointerUp);
+    canvas.addEventListener("mouseleave", handlePointerLeave);
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
+        handlePointerMove(e);
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        handlePointerDown(e);
+      },
+      { passive: false },
+    );
+    canvas.addEventListener("touchend", handlePointerUp);
+  }
 
-  btnToggleGrid.addEventListener("click", toggleGrid);
-  btnClear.addEventListener("click", clearCanvas);
-  btnExport.addEventListener("click", exportASM);
+  if (btnToggleGrid) btnToggleGrid.addEventListener("click", toggleGrid);
+  if (btnClear) btnClear.addEventListener("click", clearCanvas);
+  if (btnExport) btnExport.addEventListener("click", exportASM);
 
   const btnImportTrigger = document.getElementById("btn-import-trigger");
   const importFileInput = document.getElementById("import-file-input");
@@ -529,19 +585,719 @@ function setupEventListeners() {
     importFileInput.addEventListener("change", handleImportZIP);
   }
 
-  btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
-  btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
-  btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
-  btnModeSelect.addEventListener("click", () => setDrawingMode("select"));
-  btnCreateTemplate.addEventListener("click", createTemplateFromCurrentDrawing);
+  if (btnModeRect)
+    btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
+  if (btnModeSingle)
+    btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
+  if (btnModeStamp)
+    btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
+  if (btnModeSelect)
+    btnModeSelect.addEventListener("click", () => setDrawingMode("select"));
+  if (btnCreateTemplate)
+    btnCreateTemplate.addEventListener(
+      "click",
+      createTemplateFromCurrentDrawing,
+    );
 
-  btnAddFrame.addEventListener("click", () => {
-    addFrame(`Frame ${frames.length + 1}`);
-    switchToFrame(frames[frames.length - 1].id);
+  if (btnAddFrame) {
+    btnAddFrame.addEventListener("click", () => {
+      addFrame(`Frame ${frames.length + 1}`);
+      switchToFrame(frames[frames.length - 1].id);
+    });
+  }
+  if (btnCloneFrame) btnCloneFrame.addEventListener("click", cloneActiveFrame);
+  if (btnEditBackground)
+    btnEditBackground.addEventListener("click", switchToBackground);
+  if (btnToggleOnion) btnToggleOnion.addEventListener("click", toggleOnionSkin);
+
+  // Eventos Modo 2 Texto
+  setupTextModeEvents();
+
+  const btnExportTextASM = document.getElementById("btn-export-text-asm");
+  if (btnExportTextASM) {
+    btnExportTextASM.addEventListener("click", exportTextModeASM);
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+// ==========================================
+// ESTADO Y LÓGICA DE LA PIZARRA MODO TEXTO (80x25)
+// ==========================================
+let textToolMode = "cuadro";
+
+let textBoardObjects = [
+  { id: 1, type: "cuadro", r1: 2, c1: 12, r2: 22, c2: 61, color: "00CH" },
+  { id: 2, type: "cuadro", r1: 5, c1: 30, r2: 5, c2: 41, color: "016H" },
+  {
+    id: 3,
+    type: "label",
+    row: 5,
+    col: 18,
+    text: "Boleto:",
+    varName: "lbl_boleto",
+    color: "71H",
+  },
+  {
+    id: 4,
+    type: "input",
+    row: 5,
+    col: 30,
+    maxLen: 2,
+    varName: "eboleto",
+    color: "016H",
+  },
+
+  { id: 5, type: "cuadro", r1: 10, c1: 30, r2: 10, c2: 45, color: "21H" },
+  {
+    id: 6,
+    type: "label",
+    row: 10,
+    col: 18,
+    text: "Destino:",
+    varName: "lbl_destino",
+    color: "71H",
+  },
+  {
+    id: 7,
+    type: "input",
+    row: 10,
+    col: 30,
+    maxLen: 16,
+    varName: "edestino",
+    color: "21H",
+  },
+
+  { id: 8, type: "cuadro", r1: 16, c1: 30, r2: 16, c2: 41, color: "21H" },
+  {
+    id: 9,
+    type: "label",
+    row: 16,
+    col: 18,
+    text: "Precio:",
+    varName: "lbl_precio",
+    color: "71H",
+  },
+  {
+    id: 10,
+    type: "input",
+    row: 16,
+    col: 30,
+    maxLen: 4,
+    varName: "eprecio",
+    color: "21H",
+  },
+];
+let textObjectIdCounter = 10;
+let activeSelectedTextObjId = null;
+
+let isDrawingTextRect = false;
+let textRectStart = null;
+
+let isDraggingTextObj = false;
+let textDragOffset = { r: 0, c: 0 };
+
+function setupTextModeEvents() {
+  const btnEnvVideo = document.getElementById("btn-env-video");
+  const btnEnvText = document.getElementById("btn-env-text");
+  if (btnEnvVideo && btnEnvText) {
+    btnEnvVideo.addEventListener("click", () => switchEnvironment("video"));
+    btnEnvText.addEventListener("click", () => switchEnvironment("text"));
+  }
+
+  const tools = {
+    cuadro: document.getElementById("btn-text-tool-cuadro"),
+    label: document.getElementById("btn-text-tool-label"),
+    input: document.getElementById("btn-text-tool-input"),
+    select: document.getElementById("btn-text-tool-select"),
+  };
+
+  Object.entries(tools).forEach(([mode, btn]) => {
+    if (btn) {
+      btn.addEventListener("click", () => setTextToolMode(mode));
+    }
   });
-  btnCloneFrame.addEventListener("click", cloneActiveFrame);
-  btnEditBackground.addEventListener("click", switchToBackground);
-  btnToggleOnion.addEventListener("click", toggleOnionSkin);
+
+  const consoleEl = document.getElementById("text-console");
+  if (consoleEl) {
+    consoleEl.addEventListener("mousemove", handleTextConsoleMouseMove);
+    consoleEl.addEventListener("mousedown", handleTextConsoleMouseDown);
+    consoleEl.addEventListener("mouseup", handleTextConsoleMouseUp);
+    consoleEl.addEventListener("contextmenu", handleTextConsoleContextMenu);
+  }
+
+  const ctxSave = document.getElementById("ctx-btn-save");
+  const ctxDel = document.getElementById("ctx-btn-delete");
+  if (ctxSave) ctxSave.addEventListener("click", saveContextMenuProps);
+  if (ctxDel) ctxDel.addEventListener("click", deleteContextMenuObj);
+
+  document.addEventListener("click", (e) => {
+    const ctxMenu = document.getElementById("text-context-menu");
+    if (ctxMenu && !ctxMenu.contains(e.target) && e.button !== 2) {
+      ctxMenu.style.display = "none";
+    }
+  });
+}
+
+function setTextToolMode(mode) {
+  textToolMode = mode;
+  const tools = {
+    cuadro: document.getElementById("btn-text-tool-cuadro"),
+    label: document.getElementById("btn-text-tool-label"),
+    input: document.getElementById("btn-text-tool-input"),
+    select: document.getElementById("btn-text-tool-select"),
+  };
+
+  Object.entries(tools).forEach(([m, btn]) => {
+    if (btn) {
+      btn.classList.remove("btn-primary", "active");
+      btn.classList.add("btn-secondary");
+    }
+  });
+
+  if (tools[mode]) {
+    tools[mode].classList.remove("btn-secondary");
+    tools[mode].classList.add("btn-primary", "active");
+  }
+
+  const consoleEl = document.getElementById("text-console");
+  if (consoleEl) {
+    consoleEl.style.cursor = mode === "select" ? "default" : "crosshair";
+  }
+}
+
+function getConsoleCoords(e) {
+  const consoleEl = document.getElementById("text-console");
+  const rect = consoleEl.getBoundingClientRect();
+  const colWidth = rect.width / 80;
+  const rowHeight = rect.height / 25;
+  let col = Math.floor((e.clientX - rect.left) / colWidth);
+  let row = Math.floor((e.clientY - rect.top) / rowHeight);
+  return {
+    row: Math.max(0, Math.min(24, row)),
+    col: Math.max(0, Math.min(79, col)),
+  };
+}
+
+function getTextObjectAtCoords(row, col) {
+  for (let i = textBoardObjects.length - 1; i >= 0; i--) {
+    const obj = textBoardObjects[i];
+    if (obj.type === "cuadro") {
+      const minR = Math.min(obj.r1, obj.r2),
+        maxR = Math.max(obj.r1, obj.r2);
+      const minC = Math.min(obj.c1, obj.c2),
+        maxC = Math.max(obj.c1, obj.c2);
+      if (row >= minR && row <= maxR && col >= minC && col <= maxC) return obj;
+    } else if (obj.type === "label") {
+      if (
+        row === obj.row &&
+        col >= obj.col &&
+        col < obj.col + (obj.text || "").length
+      )
+        return obj;
+    } else if (obj.type === "input") {
+      if (
+        row === obj.row &&
+        col >= obj.col &&
+        col < obj.col + (obj.maxLen || 5)
+      )
+        return obj;
+    }
+  }
+  return null;
+}
+
+function handleTextConsoleMouseMove(e) {
+  const coords = getConsoleCoords(e);
+  const hoverEl = document.getElementById("text-coords-hover");
+  if (hoverEl) hoverEl.textContent = `Col: ${coords.col}  Row: ${coords.row}`;
+
+  if (isDraggingTextObj && activeSelectedTextObjId !== null) {
+    const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+    if (obj) {
+      if (obj.type === "cuadro") {
+        const width = Math.abs(obj.c2 - obj.c1),
+          height = Math.abs(obj.r2 - obj.r1);
+        const newR1 = Math.max(
+          0,
+          Math.min(24 - height, coords.row - textDragOffset.r),
+        );
+        const newC1 = Math.max(
+          0,
+          Math.min(79 - width, coords.col - textDragOffset.c),
+        );
+        obj.r1 = newR1;
+        obj.c1 = newC1;
+        obj.r2 = newR1 + height;
+        obj.c2 = newC1 + width;
+      } else {
+        obj.row = Math.max(0, Math.min(24, coords.row - textDragOffset.r));
+        obj.col = Math.max(0, Math.min(79, coords.col - textDragOffset.c));
+      }
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  }
+}
+
+function handleTextConsoleMouseDown(e) {
+  if (e.button === 2) return;
+  const coords = getConsoleCoords(e);
+  const hitObj = getTextObjectAtCoords(coords.row, coords.col);
+
+  if (hitObj && (textToolMode === "select" || e.shiftKey)) {
+    activeSelectedTextObjId = hitObj.id;
+    isDraggingTextObj = true;
+    textDragOffset = {
+      r: coords.row - (hitObj.type === "cuadro" ? hitObj.r1 : hitObj.row),
+      c: coords.col - (hitObj.type === "cuadro" ? hitObj.c1 : hitObj.col),
+    };
+    renderTextModeConsole();
+    updateTextFieldsUI();
+    return;
+  }
+
+  if (textToolMode === "cuadro") {
+    if (!isDrawingTextRect) {
+      isDrawingTextRect = true;
+      textRectStart = coords;
+    } else {
+      isDrawingTextRect = false;
+      const newCuadro = {
+        id: ++textObjectIdCounter,
+        type: "cuadro",
+        r1: textRectStart.row,
+        c1: textRectStart.col,
+        r2: coords.row,
+        c2: coords.col,
+        color: "016H",
+      };
+      textBoardObjects.push(newCuadro);
+      activeSelectedTextObjId = newCuadro.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (textToolMode === "label") {
+    const textVal = prompt("Texto:", "Texto:");
+    if (textVal !== null) {
+      const newLabel = {
+        id: ++textObjectIdCounter,
+        type: "label",
+        row: coords.row,
+        col: coords.col,
+        text: textVal,
+        varName: `lbl_${textObjectIdCounter}`,
+        color: "71H",
+      };
+      textBoardObjects.push(newLabel);
+      activeSelectedTextObjId = newLabel.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (textToolMode === "input") {
+    const maxLenVal = parseInt(prompt("Máx caracteres:", "10"), 10) || 10;
+    const newInput = {
+      id: ++textObjectIdCounter,
+      type: "input",
+      row: coords.row,
+      col: coords.col,
+      maxLen: maxLenVal,
+      varName: `e_campo${textObjectIdCounter}`,
+      color: "21H",
+    };
+    textBoardObjects.push(newInput);
+    activeSelectedTextObjId = newInput.id;
+    renderTextModeConsole();
+    updateTextFieldsUI();
+  }
+}
+
+function handleTextConsoleMouseUp() {
+  isDraggingTextObj = false;
+}
+
+function handleTextConsoleContextMenu(e) {
+  e.preventDefault();
+  const coords = getConsoleCoords(e);
+  const obj = getTextObjectAtCoords(coords.row, coords.col);
+  const ctxMenu = document.getElementById("text-context-menu");
+  if (!obj || !ctxMenu) {
+    if (ctxMenu) ctxMenu.style.display = "none";
+    return;
+  }
+  activeSelectedTextObjId = obj.id;
+  renderTextModeConsole();
+  document.getElementById("ctx-title").textContent =
+    `Propiedades (${obj.type.toUpperCase()})`;
+  document.getElementById("ctx-field-text").style.display =
+    obj.type === "label" ? "block" : "none";
+  document.getElementById("ctx-field-var").style.display =
+    obj.type === "label" || obj.type === "input" ? "block" : "none";
+  document.getElementById("ctx-field-maxlen").style.display =
+    obj.type === "input" ? "block" : "none";
+  if (obj.type === "label")
+    document.getElementById("ctx-input-text").value = obj.text || "";
+  if (obj.type === "label" || obj.type === "input")
+    document.getElementById("ctx-input-var").value = obj.varName || "";
+  if (obj.type === "input")
+    document.getElementById("ctx-input-maxlen").value = obj.maxLen || 5;
+  document.getElementById("ctx-select-color").value = obj.color || "71H";
+  ctxMenu.style.display = "block";
+  ctxMenu.style.left = `${Math.min(window.innerWidth - 240, e.clientX + 10)}px`;
+  ctxMenu.style.top = `${Math.min(window.innerHeight - 250, e.clientY + 10)}px`;
+}
+
+function saveContextMenuProps() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  if (!obj) return;
+  if (obj.type === "label") {
+    obj.text = document.getElementById("ctx-input-text").value || "";
+    obj.varName = document.getElementById("ctx-input-var").value || obj.varName;
+  } else if (obj.type === "input") {
+    obj.varName = document.getElementById("ctx-input-var").value || obj.varName;
+    obj.maxLen =
+      parseInt(document.getElementById("ctx-input-maxlen").value, 10) ||
+      obj.maxLen;
+  }
+  obj.color = document.getElementById("ctx-select-color").value;
+  document.getElementById("text-context-menu").style.display = "none";
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function deleteContextMenuObj() {
+  if (activeSelectedTextObjId === null) return;
+  textBoardObjects = textBoardObjects.filter(
+    (o) => o.id !== activeSelectedTextObjId,
+  );
+  activeSelectedTextObjId = null;
+  document.getElementById("text-context-menu").style.display = "none";
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function switchEnvironment(env) {
+  currentEnvironment = env;
+  const btnEnvVideo = document.getElementById("btn-env-video");
+  const btnEnvText = document.getElementById("btn-env-text");
+  const videoLayout = document.getElementById("video-mode-container");
+  const textLayout = document.getElementById("text-mode-container");
+
+  if (env === "text") {
+    if (btnEnvVideo) {
+      btnEnvVideo.classList.remove("btn-primary", "active");
+      btnEnvVideo.classList.add("btn-secondary");
+    }
+    if (btnEnvText) {
+      btnEnvText.classList.remove("btn-secondary");
+      btnEnvText.classList.add("btn-primary", "active");
+    }
+
+    if (videoLayout) videoLayout.style.display = "none";
+    if (textLayout) textLayout.style.display = "grid";
+    renderTextModeConsole();
+  } else {
+    if (btnEnvText) {
+      btnEnvText.classList.remove("btn-primary", "active");
+      btnEnvText.classList.add("btn-secondary");
+    }
+    if (btnEnvVideo) {
+      btnEnvVideo.classList.remove("btn-secondary");
+      btnEnvVideo.classList.add("btn-primary", "active");
+    }
+
+    if (textLayout) textLayout.style.display = "none";
+    if (videoLayout) videoLayout.style.display = "grid";
+    draw();
+  }
+}
+
+function renderTextModeConsole() {
+  const consoleEl = document.getElementById("text-console");
+  if (!consoleEl) return;
+
+  const grid = Array.from({ length: 25 }, () =>
+    Array(80).fill({ char: " ", bg: "#c0c0c0", fg: "#0000aa" }),
+  );
+
+  textBoardObjects.forEach((obj) => {
+    const isSelected = obj.id === activeSelectedTextObjId;
+    const cColor = BIOS_ATTR_COLORS[obj.color] || { bg: "#000", fg: "#f00" };
+
+    if (obj.type === "cuadro") {
+      const minR = Math.min(obj.r1, obj.r2),
+        maxR = Math.max(obj.r1, obj.r2);
+      const minC = Math.min(obj.c1, obj.c2),
+        maxC = Math.max(obj.c1, obj.c2);
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          if (r < 25 && c < 80) {
+            grid[r][c] = {
+              char: " ",
+              bg: isSelected ? "#a855f7" : cColor.bg,
+              fg: cColor.fg,
+            };
+          }
+        }
+      }
+    } else if (obj.type === "label") {
+      const txt = obj.text || "";
+      for (let i = 0; i < txt.length; i++) {
+        if (obj.row < 25 && obj.col + i < 80) {
+          grid[obj.row][obj.col + i] = {
+            char: txt[i],
+            bg: isSelected ? "#a855f7" : cColor.bg,
+            fg: isSelected ? "#fff" : cColor.fg,
+          };
+        }
+      }
+    } else if (obj.type === "input") {
+      for (let i = 0; i < (obj.maxLen || 5); i++) {
+        if (obj.row < 25 && obj.col + i < 80) {
+          grid[obj.row][obj.col + i] = {
+            char: "_",
+            bg: isSelected ? "#a855f7" : cColor.bg,
+            fg: isSelected ? "#fff" : cColor.fg,
+          };
+        }
+      }
+    }
+  });
+
+  let html = "";
+  for (let r = 0; r < 25; r++) {
+    for (let c = 0; c < 80; c++) {
+      const cell = grid[r][c];
+      const char = cell.char === " " ? "&nbsp;" : cell.char;
+      html += `<span style="background:${cell.bg};color:${cell.fg}">${char}</span>`;
+    }
+    html += "\n";
+  }
+  consoleEl.innerHTML = html;
+}
+
+function updateTextFieldsUI() {
+  const listEl = document.getElementById("text-fields-list");
+  const countEl = document.getElementById("text-fields-count");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+  if (countEl) countEl.textContent = `${textBoardObjects.length} Objetos`;
+
+  if (textBoardObjects.length === 0) {
+    listEl.innerHTML = `<li class="empty-state">La pizarra de texto está vacía. Usas los botones superiores para colocar cuadros o textos.</li>`;
+    return;
+  }
+
+  textBoardObjects.forEach((obj, idx) => {
+    const item = document.createElement("li");
+    item.className =
+      "history-item" +
+      (obj.id === activeSelectedTextObjId ? " sprite-selected" : "");
+    item.style.cssText =
+      "display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;";
+    item.addEventListener("click", () => {
+      activeSelectedTextObjId = obj.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    });
+
+    const info = document.createElement("div");
+    let icon =
+      obj.type === "cuadro"
+        ? "🔲 Cuadro"
+        : obj.type === "label"
+          ? "🔤 Texto"
+          : "📥 Entrada";
+    let detailStr = "";
+    if (obj.type === "cuadro")
+      detailStr = `[${obj.r1},${obj.c1}] → [${obj.r2},${obj.c2}] (${obj.color})`;
+    else if (obj.type === "label")
+      detailStr = `"${obj.text}" en (${obj.row},${obj.col})`;
+    else
+      detailStr = `${obj.varName} max:${obj.maxLen} en (${obj.row},${obj.col})`;
+
+    info.innerHTML = `<strong style="color:#a5b4fc">${icon} #${idx + 1}</strong><br><small style="color:#94a3b8;">${detailStr}</small>`;
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-delete-item";
+    delBtn.innerHTML = "🗑️";
+    delBtn.title = "Eliminar objeto";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      textBoardObjects = textBoardObjects.filter((o) => o.id !== obj.id);
+      if (activeSelectedTextObjId === obj.id) activeSelectedTextObjId = null;
+      updateTextFieldsUI();
+      renderTextModeConsole();
+    });
+
+    item.appendChild(info);
+    item.appendChild(delBtn);
+    listEl.appendChild(item);
+  });
+}
+
+function generateMode2ASM() {
+  let macros = [];
+  let dataLines = [];
+  let codeExecutions = [];
+
+  textBoardObjects.forEach((obj, idx) => {
+    if (obj.type === "cuadro") {
+      const r1Hex =
+        Math.min(obj.r1, obj.r2).toString(16).padStart(2, "0").toUpperCase() +
+        "H";
+      const c1Hex =
+        Math.min(obj.c1, obj.c2).toString(16).padStart(2, "0").toUpperCase() +
+        "H";
+      const r2Hex =
+        Math.max(obj.r1, obj.r2).toString(16).padStart(2, "0").toUpperCase() +
+        "H";
+      const c2Hex =
+        Math.max(obj.c1, obj.c2).toString(16).padStart(2, "0").toUpperCase() +
+        "H";
+
+      const macroName = `cuadro_${idx + 1}`;
+      macros.push(
+        `${macroName} MACRO\n` +
+          `MOV AX, 0600H\n` +
+          `MOV BH, ${obj.color || "71H"}\n` +
+          `MOV CX, ${r1Hex}${c1Hex}\n` +
+          `MOV DX, ${r2Hex}${c2Hex}\n` +
+          `INT 10H\n` +
+          `ENDM\n`,
+      );
+      codeExecutions.push(macroName);
+    } else if (obj.type === "label") {
+      const varName = obj.varName || `lbl_${idx + 1}`;
+      const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
+
+      macros.push(
+        `text_${varName} MACRO\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `MOV AH, 09H\n` +
+          `LEA DX, ${varName}\n` +
+          `INT 21H\n` +
+          `ENDM\n`,
+      );
+
+      dataLines.push(`${varName} DB '${obj.text || ""}', '$'`);
+      codeExecutions.push(`text_${varName}`);
+    } else if (obj.type === "input") {
+      const varName = obj.varName || `e_input${idx + 1}`;
+      const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const reservLen = (obj.maxLen || 5) + 4;
+
+      macros.push(
+        `entrada_${varName} MACRO\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `MOV AH, 0AH\n` +
+          `LEA DX, e${varName}\n` +
+          `INT 21H\n` +
+          `ENDM\n`,
+      );
+
+      macros.push(
+        `ee_${varName} MACRO\n` +
+          `e${varName} LABEL BYTE\n` +
+          `MAX_${varName} DB ${obj.maxLen || 5}\n` +
+          `ACTUAL_${varName} DB ?\n` +
+          `RESER_${varName} DB ${reservLen} DUP (' ')\n` +
+          `ENDM\n`,
+      );
+
+      codeExecutions.push(`entrada_${varName}`);
+      codeExecutions.push(`ee_${varName}`);
+    }
+  });
+
+  return [
+    "; ==========================================",
+    "; PROYECTO MODO TEXTO BIOS 80x25 - mt1.asm",
+    "; ==========================================",
+    "",
+    macros.join("\n"),
+    ".MODEL SMALL",
+    ".STACK 64",
+    ".DATA",
+    "",
+    dataLines.length > 0 ? dataLines.join("\n") : "; (sin variables de texto)",
+    "",
+    ".CODE",
+    "PRIN PROC FAR",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "",
+    codeExecutions.length > 0
+      ? codeExecutions.join("\n")
+      : "    ; (pizarra vacía)",
+    "",
+    "; Finalización limpia del programa en modo texto",
+    "MOV AX, 4C00H",
+    "INT 21H",
+    "",
+    "PRIN ENDP",
+    "END PRIN",
+    "",
+  ].join("\n");
+}
+
+function generateTextoBAT() {
+  return (
+    [
+      "@echo off",
+      "echo Compilando mt1.asm...",
+      "tasm mt1.asm",
+      "if errorlevel 1 goto error",
+      "",
+      "echo Enlazando mt1.exe...",
+      "tlink mt1.obj",
+      "if errorlevel 1 goto error",
+      "",
+      "echo Ejecutando mt1...",
+      "mt1",
+      "goto end",
+      "",
+      ":error",
+      "echo Error al compilar o enlazar mt1.asm.",
+      "",
+      ":end",
+    ].join("\r\n") + "\r\n"
+  );
+}
+
+async function exportTextModeASM() {
+  const asmContent = generateMode2ASM();
+  const batContent = generateTextoBAT();
+
+  if (typeof JSZip !== "undefined") {
+    const zip = new JSZip();
+    zip.file("mt1.asm", asmContent);
+    zip.file("texto.bat", batContent);
+    const blob = await zip.generateAsync({ type: "blob" });
+    downloadBlob(blob, `modo_texto_asm_${Date.now()}.zip`);
+  } else {
+    downloadBlob(
+      new Blob([asmContent], { type: "text/plain;charset=utf-8" }),
+      "mt1.asm",
+    );
+    downloadBlob(
+      new Blob([batContent], { type: "text/plain;charset=utf-8" }),
+      "texto.bat",
+    );
+  }
 }
 
 // ==========================================
@@ -567,7 +1323,7 @@ function setDrawingMode(mode) {
     stamp: btnModeStamp,
     select: btnModeSelect,
   };
-  
+
   if (targets[mode]) {
     targets[mode].classList.remove("btn-secondary");
     targets[mode].classList.add("btn-primary", "active");
@@ -590,7 +1346,7 @@ function handlePointerMove(e) {
   if (isDraggingSprite && activeSelectedSpriteId !== null) {
     const layer = getActiveEditingLayer();
     if (layer && layer.sprites) {
-      const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+      const sprite = layer.sprites.find((s) => s.id === activeSelectedSpriteId);
       if (sprite) {
         sprite.x = clamp(coords.x - dragOffset.x, 0, canvas.width - 1);
         sprite.y = clamp(coords.y - dragOffset.y, 0, canvas.height - 1);
@@ -632,7 +1388,7 @@ function handlePointerMove(e) {
     const fi = visibleIndices[i];
     const frame = frames[fi];
     if (!frame || !frame.visible) continue;
-    
+
     // Primero buscar sprites
     const frameSprite = getSpriteAtCoords(frame, coords);
     if (frameSprite) {
@@ -642,7 +1398,7 @@ function handlePointerMove(e) {
       };
       break;
     }
-    
+
     const found = frame.rectangles.find((r) => isPointInRect(coords, r));
     if (found) {
       const [r, g, b] = VGA_PALETTE[found.colorIndex];
@@ -659,7 +1415,9 @@ function handlePointerMove(e) {
 
   // Cambiar cursor a "move" si estamos sobre un sprite de la capa activa
   const activeLayer = getActiveEditingLayer();
-  const spriteUnderCursor = activeLayer ? getSpriteAtCoords(activeLayer, coords) : null;
+  const spriteUnderCursor = activeLayer
+    ? getSpriteAtCoords(activeLayer, coords)
+    : null;
   canvas.style.cursor = spriteUnderCursor ? "move" : "crosshair";
 
   hoverCoordsEl.textContent = `X:${coords.x}  Y:${coords.y}${hoveredInfo ? "  |  " + hoveredInfo.label : ""}`;
@@ -721,7 +1479,7 @@ function getVisibleFrameIndices() {
 }
 
 function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
-  sprite.rects.forEach(rect => {
+  sprite.rects.forEach((rect) => {
     let fillColor;
     if (mixBlue) {
       const [r, g, b] = VGA_PALETTE[rect.colorIndex];
@@ -735,21 +1493,26 @@ function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
     }
     ctx.fillStyle = fillColor;
     ctx.globalAlpha = opacity;
-    
+
     const x1 = clamp(rect.x1 + sprite.x, 0, canvas.width - 1);
     const y1 = clamp(rect.y1 + sprite.y, 0, canvas.height - 1);
     const x2 = clamp(rect.x2 + sprite.x, 0, canvas.width - 1);
     const y2 = clamp(rect.y2 + sprite.y, 0, canvas.height - 1);
-    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+    const minX = Math.min(x1, x2),
+      maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2),
+      maxY = Math.max(y1, y2);
     ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
   });
-  
+
   ctx.globalAlpha = 1.0;
   // Resaltado de selección si es la capa que se está editando
   if (isLayerEditable && activeSelectedSpriteId === sprite.id) {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    sprite.rects.forEach(r => {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    sprite.rects.forEach((r) => {
       const x1 = r.x1 + sprite.x;
       const x2 = r.x2 + sprite.x;
       const y1 = r.y1 + sprite.y;
@@ -771,7 +1534,9 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const currentFrameIndex = editingBackground
-    ? (frames.length > 0 ? frames.length - 1 : -1)
+    ? frames.length > 0
+      ? frames.length - 1
+      : -1
     : frames.findIndex((f) => f.id === activeFrameId);
 
   // 1. Fondo siempre al 100%
@@ -804,7 +1569,8 @@ function draw() {
       }
     } else {
       const opacitySteps = [0.35, 0.2, 0.1, 0.05];
-      const opacity = opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      const opacity =
+        opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
       const mixBlue = Math.min(0.5, distance * 0.2);
 
       frame.rectangles.forEach((rect) => {
@@ -927,8 +1693,11 @@ function getSpriteAtCoords(layer, coords) {
   // Buscar del último al primero (el de arriba primero)
   for (let i = layer.sprites.length - 1; i >= 0; i--) {
     const s = layer.sprites[i];
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    s.rects.forEach(r => {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    s.rects.forEach((r) => {
       const x1 = r.x1 + s.x;
       const x2 = r.x2 + s.x;
       const y1 = r.y1 + s.y;
@@ -938,7 +1707,12 @@ function getSpriteAtCoords(layer, coords) {
       minY = Math.min(minY, y1, y2);
       maxY = Math.max(maxY, y1, y2);
     });
-    if (coords.x >= minX && coords.x <= maxX && coords.y >= minY && coords.y <= maxY) {
+    if (
+      coords.x >= minX &&
+      coords.x <= maxX &&
+      coords.y >= minY &&
+      coords.y <= maxY
+    ) {
       return s;
     }
   }
@@ -991,7 +1765,7 @@ function handlePointerDown(e) {
     }
     const tmpl = templates.find((t) => t.id === selectedTemplateId);
     if (!tmpl) return;
-    
+
     const newSprite = {
       id: ++spriteIdCounter,
       name: tmpl.name,
@@ -999,13 +1773,13 @@ function handlePointerDown(e) {
       y: coords.y,
       width: tmpl.width,
       height: tmpl.height,
-      rects: tmpl.rects.map(r => ({ ...r }))
+      rects: tmpl.rects.map((r) => ({ ...r })),
     };
-    
+
     if (!layer.sprites) layer.sprites = [];
     layer.sprites.push(newSprite);
-    
-    tmpl.rects.forEach(r => {
+
+    tmpl.rects.forEach((r) => {
       const tipo = getTipoInstruccion(r) || "DRAW_REGION";
       agregarInstruccion(tipo);
     });
@@ -1059,7 +1833,6 @@ function handlePointerDown(e) {
   }
 }
 
-
 // ==========================================
 // OPTIMIZACIÓN
 // ==========================================
@@ -1086,12 +1859,19 @@ function optimizeRectangles(layer) {
 // GESTIÓN DE CAPAS / FRAMES
 // ==========================================
 function getActiveEditingLayer() {
-  if (editingBackground) return backgroundLayer;
-  return frames.find((f) => f.id === activeFrameId) || null;
+  if (typeof editingBackground !== "undefined" && editingBackground)
+    return backgroundLayer;
+  return (
+    (typeof frames !== "undefined"
+      ? frames.find((f) => f.id === activeFrameId)
+      : null) || backgroundLayer
+  );
 }
 
 function getActiveFrame() {
-  return frames.find((f) => f.id === activeFrameId) || null;
+  return typeof frames !== "undefined"
+    ? frames.find((f) => f.id === activeFrameId) || null
+    : null;
 }
 
 function addFrame(name) {
@@ -1182,8 +1962,7 @@ function toggleOnionSkin() {
     btnToggleOnion.innerHTML = '<span class="btn-icon">🧅</span> Cebolla: ON';
   } else {
     btnToggleOnion.classList.replace("btn-primary", "btn-secondary");
-    btnToggleOnion.innerHTML =
-      '<span class="btn-icon">🧅</span> Cebolla: OFF';
+    btnToggleOnion.innerHTML = '<span class="btn-icon">🧅</span> Cebolla: OFF';
   }
   draw();
 }
@@ -1213,17 +1992,15 @@ function updateHistoryUI() {
   }
   const rects = layer.rectangles;
   const sprites = layer.sprites || [];
-  const totalRectCount = rects.length + sprites.reduce((a, s) => a + s.rects.length, 0);
+  const totalRectCount =
+    rects.length + sprites.reduce((a, s) => a + s.rects.length, 0);
   const spriteCount = sprites.length;
   let badgeText = `${totalRectCount} ${totalRectCount === 1 ? "Rect" : "Rects"}`;
   if (spriteCount > 0) badgeText += ` · ${spriteCount} Spr`;
   rectCountBadge.textContent = badgeText;
 
   // Sincronizar memoria: rects sueltos + rects dentro de sprites
-  const allRectsForMemory = [
-    ...rects,
-    ...sprites.flatMap((s) => s.rects),
-  ];
+  const allRectsForMemory = [...rects, ...sprites.flatMap((s) => s.rects)];
   sincronizarMemoriaDesdeHistorial(allRectsForMemory);
 
   if (rects.length === 0 && sprites.length === 0) {
@@ -1294,7 +2071,8 @@ function updateHistoryUI() {
   sprites.forEach((sprite, sIdx) => {
     // Cabecera del sprite (clic = seleccionar en canvas)
     const header = document.createElement("li");
-    header.className = "history-item sprite-header" +
+    header.className =
+      "history-item sprite-header" +
       (activeSelectedSpriteId === sprite.id ? " sprite-selected" : "");
     header.style.cssText = "cursor:pointer;border-left:3px solid #a855f7;";
     header.addEventListener("click", () => {
@@ -1309,11 +2087,13 @@ function updateHistoryUI() {
 
     const spriteIcon = document.createElement("div");
     spriteIcon.className = "history-color-preview";
-    spriteIcon.style.cssText = "background:linear-gradient(135deg,#a855f7,#6366f1);border-radius:4px;";
+    spriteIcon.style.cssText =
+      "background:linear-gradient(135deg,#a855f7,#6366f1);border-radius:4px;";
 
     const spriteLabel = document.createElement("span");
     spriteLabel.className = "history-coords";
-    spriteLabel.innerHTML = `<strong style="color:#c4b5fd;">\ud83c\udfad Sprite ${sIdx + 1}</strong>` +
+    spriteLabel.innerHTML =
+      `<strong style="color:#c4b5fd;">\ud83c\udfad Sprite ${sIdx + 1}</strong>` +
       `<span style="color:#94a3b8;font-size:10px;"> ${sprite.name || ""} (${sprite.x},${sprite.y}) · ${sprite.rects.length}r</span>`;
 
     headerDetails.appendChild(spriteIcon);
@@ -1343,9 +2123,11 @@ function updateHistoryUI() {
     // Sub-items del sprite (sus rects individuales, con indentación)
     sprite.rects.forEach((rect, rIdx) => {
       const subItem = document.createElement("li");
-      subItem.className = "history-item sprite-sub-item" +
+      subItem.className =
+        "history-item sprite-sub-item" +
         (activeSelectedSpriteId === sprite.id ? " sprite-selected-child" : "");
-      subItem.style.cssText = "padding-left:24px;opacity:0.85;border-left:3px solid rgba(168,85,247,0.3);";
+      subItem.style.cssText =
+        "padding-left:24px;opacity:0.85;border-left:3px solid rgba(168,85,247,0.3);";
 
       const subDetails = document.createElement("div");
       subDetails.className = "history-item-details";
@@ -1379,7 +2161,6 @@ function updateHistoryUI() {
     });
   });
 }
-
 
 function updateFramesUI() {
   if (!framesList) return;
@@ -1493,8 +2274,7 @@ function toggleGrid() {
   gridActive = !gridActive;
   if (gridActive) {
     canvasOverlay.classList.add("grid-active");
-    btnToggleGrid.innerHTML =
-      '<span class="btn-icon">🌐</span> Cuadrícula: ON';
+    btnToggleGrid.innerHTML = '<span class="btn-icon">🌐</span> Cuadrícula: ON';
     btnToggleGrid.classList.replace("btn-secondary", "btn-primary");
   } else {
     canvasOverlay.classList.remove("grid-active");
@@ -1515,7 +2295,9 @@ function clearCanvas() {
       eliminarInstruccion(getTipoInstruccion(rect)),
     );
     (layer.sprites || []).forEach((sprite) =>
-      sprite.rects.forEach((r) => eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION")),
+      sprite.rects.forEach((r) =>
+        eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
+      ),
     );
     layer.rectangles = [];
     layer.sprites = [];
@@ -1772,7 +2554,10 @@ function generateLinkResponse(frameCount) {
 async function exportASM() {
   // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
   const allLayers = [backgroundLayer, ...frames];
-  const totalRects = allLayers.reduce((a, l) => a + l.rectangles.length + (l.sprites || []).length, 0);
+  const totalRects = allLayers.reduce(
+    (a, l) => a + l.rectangles.length + (l.sprites || []).length,
+    0,
+  );
 
   if (totalRects === 0) {
     alert("No hay datos que exportar. Dibuja algo primero.");
@@ -1782,11 +2567,18 @@ async function exportASM() {
   // Generar archivos
   const files = {}; // { filename: content }
 
-  files["fondo.asm"] = generateFondoASM(backgroundLayer.rectangles, backgroundLayer.sprites);
+  files["fondo.asm"] = generateFondoASM(
+    backgroundLayer.rectangles,
+    backgroundLayer.sprites,
+  );
 
   frames.forEach((frame, i) => {
     const procName = `F${i + 1}`;
-    files[`${procName}.asm`] = generateFrameASM(procName, frame.rectangles, frame.sprites || []);
+    files[`${procName}.asm`] = generateFrameASM(
+      procName,
+      frame.rectangles,
+      frame.sprites || [],
+    );
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
@@ -1938,10 +2730,12 @@ function parseAsmLine(line) {
 
   // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL) - ej: PINTAR_PIXEL (10), (20), (15)
   // Permite paréntesis opcionales y espacios flexibles
-  const pixelRegex = /PINTAR_PIXEL\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?/i;
+  const pixelRegex =
+    /PINTAR_PIXEL\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?/i;
 
   // DRAW_REGION X1,Y1, X2,Y2 , COLOR_HEX - ej: DRAW_REGION 10,20, 30,40 , 00FFH o (00FF)H
-  const rectRegex = /DRAW_REGION\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\(?\s*([0-9A-F]+)\s*\)?H/i;
+  const rectRegex =
+    /DRAW_REGION\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\(?\s*([0-9A-F]+)\s*\)?H/i;
 
   let match = cleanLine.match(pixelRegex);
   if (match) {
@@ -1955,7 +2749,7 @@ function parseAsmLine(line) {
       y1: y,
       x2: x,
       y2: y,
-      colorIndex: colorIndex
+      colorIndex: colorIndex,
     };
   }
 
@@ -1973,7 +2767,7 @@ function parseAsmLine(line) {
       y1: y1,
       x2: x2,
       y2: y2,
-      colorIndex: colorIndex
+      colorIndex: colorIndex,
     };
   }
 
@@ -1989,15 +2783,16 @@ function parseAsmContentWithSprites(content) {
   const lines = content.split(/\r?\n/);
   const rectangles = [];
   const sprites = [];
-  
+
   let currentSprite = null; // { name, posX, posY, rects: [] }
-  
-  const spriteStartRegex = /;\s*Sprite\s+(\d+)\s*(?:-\s*(.*?))?(?:\(pos:\s*(\d+)\s*,\s*(\d+)\s*\))?/i;
+
+  const spriteStartRegex =
+    /;\s*Sprite\s+(\d+)\s*(?:-\s*(.*?))?(?:\(pos:\s*(\d+)\s*,\s*(\d+)\s*\))?/i;
   const spriteEndRegex = /;\s*Fin\s+Sprite\s+\d+/i;
-  
+
   for (let line of lines) {
     const trimmed = line.trim();
-    
+
     // Check for sprite start comment
     const startMatch = trimmed.match(spriteStartRegex);
     if (startMatch) {
@@ -2005,7 +2800,8 @@ function parseAsmContentWithSprites(content) {
       if (currentSprite && currentSprite.rects.length > 0) {
         sprites.push(currentSprite);
       }
-      const spriteName = (startMatch[2] || "").trim() || `Sprite ${startMatch[1]}`;
+      const spriteName =
+        (startMatch[2] || "").trim() || `Sprite ${startMatch[1]}`;
       const posX = startMatch[3] ? parseInt(startMatch[3], 10) : 0;
       const posY = startMatch[4] ? parseInt(startMatch[4], 10) : 0;
       currentSprite = {
@@ -2016,7 +2812,7 @@ function parseAsmContentWithSprites(content) {
       };
       continue;
     }
-    
+
     // Check for sprite end comment
     if (currentSprite && spriteEndRegex.test(trimmed)) {
       if (currentSprite.rects.length > 0) {
@@ -2025,7 +2821,7 @@ function parseAsmContentWithSprites(content) {
       currentSprite = null;
       continue;
     }
-    
+
     // Parse ASM instruction
     const rect = parseAsmLine(line);
     if (rect) {
@@ -2036,12 +2832,12 @@ function parseAsmContentWithSprites(content) {
       }
     }
   }
-  
+
   // Close any unclosed sprite
   if (currentSprite && currentSprite.rects.length > 0) {
     sprites.push(currentSprite);
   }
-  
+
   // Convert parsed sprites to the app format:
   // The ASM has absolute coords; we need to compute relative coords based on sprite position
   const appSprites = sprites.map((s) => {
@@ -2061,7 +2857,7 @@ function parseAsmContentWithSprites(content) {
       })),
     };
   });
-  
+
   return { rectangles, sprites: appSprites };
 }
 
@@ -2097,7 +2893,7 @@ async function handleImportZIP(e) {
       if (match) {
         frameFiles.push({
           num: parseInt(match[1], 10),
-          entry: zipEntry
+          entry: zipEntry,
         });
       }
     });
@@ -2105,7 +2901,9 @@ async function handleImportZIP(e) {
     frameFiles.sort((a, b) => a.num - b.num);
 
     if (frameFiles.length === 0) {
-      alert("No se encontraron archivos de frames de animación (F1.asm, F2.asm...) en el ZIP.");
+      alert(
+        "No se encontraron archivos de frames de animación (F1.asm, F2.asm...) en el ZIP.",
+      );
       return;
     }
 
@@ -2118,25 +2916,33 @@ async function handleImportZIP(e) {
         name: `Frame ${fInfo.num}`,
         rectangles: parsed.rectangles,
         sprites: parsed.sprites,
-        visible: true
+        visible: true,
       });
     }
 
     // 3. Reemplazar estado de la aplicación
     let localRectId = 0;
     let localSpriteId = 0;
-    
+
     backgroundLayer.rectangles = bgParsed.rectangles;
-    backgroundLayer.rectangles.forEach(r => { r.id = ++localRectId; });
+    backgroundLayer.rectangles.forEach((r) => {
+      r.id = ++localRectId;
+    });
     backgroundLayer.sprites = bgParsed.sprites;
-    backgroundLayer.sprites.forEach(s => { s.id = ++localSpriteId; });
+    backgroundLayer.sprites.forEach((s) => {
+      s.id = ++localSpriteId;
+    });
 
     frames = [];
     frameIdCounter = 0;
-    importedFrames.forEach(f => {
+    importedFrames.forEach((f) => {
       f.id = ++frameIdCounter;
-      f.rectangles.forEach(r => { r.id = ++localRectId; });
-      (f.sprites || []).forEach(s => { s.id = ++localSpriteId; });
+      f.rectangles.forEach((r) => {
+        r.id = ++localRectId;
+      });
+      (f.sprites || []).forEach((s) => {
+        s.id = ++localSpriteId;
+      });
       frames.push(f);
     });
 
@@ -2146,7 +2952,9 @@ async function handleImportZIP(e) {
 
     // Volver a la capa de fondo y actualizar la UI
     switchToBackground();
-    const totalSprites = bgParsed.sprites.length + importedFrames.reduce((a, f) => a + (f.sprites || []).length, 0);
+    const totalSprites =
+      bgParsed.sprites.length +
+      importedFrames.reduce((a, f) => a + (f.sprites || []).length, 0);
     let msg = `Proyecto importado con éxito.\n1 capa de fondo y ${frames.length} frame(s).`;
     if (totalSprites > 0) msg += `\n${totalSprites} sprite(s) detectados.`;
     alert(msg);
@@ -2165,10 +2973,10 @@ function deleteSelectedSprite() {
   if (activeSelectedSpriteId === null) return;
   const layer = getActiveEditingLayer();
   if (!layer || !layer.sprites) return;
-  
-  const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+
+  const sprite = layer.sprites.find((s) => s.id === activeSelectedSpriteId);
   if (!sprite) return;
-  
+
   sprite.rects.forEach((r) =>
     eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
   );
@@ -2186,7 +2994,10 @@ function deleteSelectedSprite() {
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   // Delete / Suprimir → eliminar sprite seleccionado
-  if ((e.key === "Delete" || e.key === "Backspace") && activeSelectedSpriteId !== null) {
+  if (
+    (e.key === "Delete" || e.key === "Backspace") &&
+    activeSelectedSpriteId !== null
+  ) {
     // No interceptar si el foco está en un input/textarea
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
     e.preventDefault();

@@ -227,7 +227,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  pointer-events: none !important;
   /* 800/160 = 5px por celda */
   background-size: 5px 5px;
   background-image:
@@ -968,6 +968,19 @@ body {
 }
 
 /* ==========================================
+   MODO TEXTO 80x25 CONSOLE STYLING
+   ========================================== */
+.text-console-container {
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
+}
+
+#text-console span {
+  display: inline-block;
+  width: 1ch;
+  height: 15.2px;
+}
+
+/* ==========================================
    SCROLLBARS
    ========================================== */
 ::-webkit-scrollbar {
@@ -984,3 +997,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.5);
 }
+

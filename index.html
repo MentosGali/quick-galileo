@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -32,7 +32,36 @@
           </div>
         </div>
         <div class="actions-header">
-          <div class="mode-selector">
+          <!-- Selector Principal de Entorno: Modo 1 (Video) vs Modo 2 (Texto) -->
+          <div
+            class="environment-selector"
+            style="
+              display: flex;
+              gap: 6px;
+              margin-right: 12px;
+              background: rgba(0, 0, 0, 0.3);
+              padding: 4px;
+              border-radius: 8px;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+            "
+          >
+            <button
+              id="btn-env-video"
+              class="btn btn-primary active"
+              title="Modo 1: Animación y Dibujo Gráfico 320x200"
+            >
+              🎮 Modo 1: Video
+            </button>
+            <button
+              id="btn-env-text"
+              class="btn btn-secondary"
+              title="Modo 2: Formulario y Pizarra Modo Texto BIOS 80x25"
+            >
+              📝 Modo 2: Texto
+            </button>
+          </div>
+
+          <div class="mode-selector" id="video-tools-group">
             <button
               id="btn-mode-rect"
               class="btn btn-primary active"
@@ -86,7 +115,251 @@
         </div>
       </header>
 
-      <div class="main-layout">
+      <!-- VISTA MODO 2: TEXTO 80x25 -->
+      <div id="text-mode-container" class="main-layout" style="display: none">
+        <main class="canvas-section">
+          <div class="canvas-wrapper">
+            <div
+              class="active-layer-bar"
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <span class="active-layer-label" style="color: #6366f1"
+                >📝 Pizarra Modo Texto BIOS (80×25)</span
+              >
+              <!-- Barra de Herramientas de la Pizarra Modo Texto -->
+              <div class="text-tools-bar" style="display: flex; gap: 6px">
+                <button
+                  id="btn-text-tool-cuadro"
+                  class="btn btn-primary active btn-sm"
+                  title="Dibujar Cuadro con Atributo de Color"
+                >
+                  🔲 Cuadro Color
+                </button>
+                <button
+                  id="btn-text-tool-label"
+                  class="btn btn-secondary btn-sm"
+                  title="Picar y colocar Texto/Etiqueta libre"
+                >
+                  🔤 Texto
+                </button>
+                <button
+                  id="btn-text-tool-input"
+                  class="btn btn-secondary btn-sm"
+                  title="Picar y colocar Campo de Entrada (Buffer)"
+                >
+                  📥 Entrada
+                </button>
+                <button
+                  id="btn-text-tool-select"
+                  class="btn btn-secondary btn-sm"
+                  title="Seleccionar, mover o editar elementos"
+                >
+                  🎯 Seleccionar / Mover
+                </button>
+              </div>
+            </div>
+
+            <!-- Consola de previsualización 80x25 -->
+            <div
+              class="text-console-container"
+              style="
+                background: #000;
+                border: 2px solid #334155;
+                border-radius: 8px;
+                overflow: hidden;
+                position: relative;
+              "
+            >
+              <div
+                id="text-console"
+                style="
+                  width: 100%;
+                  height: 380px;
+                  font-family: &quot;JetBrains Mono&quot;, monospace;
+                  font-size: 13px;
+                  line-height: 15.2px;
+                  background: #000;
+                  color: #aaa;
+                  white-space: pre;
+                  position: relative;
+                  cursor: crosshair;
+                  user-select: none;
+                "
+              ></div>
+            </div>
+
+            <div class="zoom-info">
+              <span
+                >Pizarra Modo Texto BIOS 03h | Clic izquierdo: Dibujar/Colocar |
+                Clic derecho: Propiedades</span
+              >
+              <span id="text-coords-hover" class="coords-hover"
+                >Col: 0 Row: 0</span
+              >
+            </div>
+          </div>
+        </main>
+
+        <!-- Menú Contextual (Clic Derecho) -->
+        <div
+          id="text-context-menu"
+          style="
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            background: #0f172a;
+            border: 1px solid #6366f1;
+            border-radius: 8px;
+            padding: 10px;
+            width: 220px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+          "
+        >
+          <h5
+            id="ctx-title"
+            style="
+              color: #a5b4fc;
+              margin-bottom: 8px;
+              font-size: 12px;
+              border-bottom: 1px solid #334155;
+              padding-bottom: 4px;
+            "
+          >
+            Propiedades del Elemento
+          </h5>
+
+          <div id="ctx-field-text" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Texto / Etiqueta:</label
+            >
+            <input
+              type="text"
+              id="ctx-input-text"
+              class="layer-name-input"
+              style="width: 100%; border: 1px solid #334155"
+            />
+          </div>
+
+          <div id="ctx-field-var" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Nombre Variable ASM:</label
+            >
+            <input
+              type="text"
+              id="ctx-input-var"
+              class="layer-name-input"
+              style="width: 100%; border: 1px solid #334155"
+            />
+          </div>
+
+          <div id="ctx-field-maxlen" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Max Caracteres:</label
+            >
+            <input
+              type="number"
+              id="ctx-input-maxlen"
+              min="1"
+              max="50"
+              class="layer-name-input"
+              style="width: 100%; border: 1px solid #334155"
+            />
+          </div>
+
+          <div style="margin-bottom: 8px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Atributo Color BIOS:</label
+            >
+            <select
+              id="ctx-select-color"
+              class="layer-name-input"
+              style="
+                width: 100%;
+                background: #0f172a;
+                border: 1px solid #334155;
+                color: #fff;
+              "
+            >
+              <option value="71H">71H (Fondo Gris, Texto Azul)</option>
+              <option value="00CH">00CH (Fondo Negro, Texto Rojo)</option>
+              <option value="016H">016H (Fondo Azul, Texto Cyan)</option>
+              <option value="21H">21H (Fondo Verde, Texto Azul)</option>
+              <option value="4EH">4EH (Fondo Rojo, Texto Amarillo)</option>
+              <option value="1FH">1FH (Fondo Azul, Texto Blanco)</option>
+              <option value="70H">70H (Fondo Gris, Texto Negro)</option>
+              <option value="0FH">0FH (Fondo Negro, Texto Blanco)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 6px">
+            <button
+              id="ctx-btn-save"
+              class="btn btn-primary btn-sm"
+              style="flex: 1"
+            >
+              Guardar
+            </button>
+            <button
+              id="ctx-btn-delete"
+              class="btn btn-danger btn-sm"
+              style="flex: 1"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+
+        <aside class="sidebar-section">
+          <div class="sidebar-header">
+            <h3>Elementos en Pizarra</h3>
+            <span class="count-badge" id="text-fields-count">0 Objetos</span>
+          </div>
+          <div class="sidebar-body">
+            <div class="instructions-card">
+              <h4>🎨 Pizarra Libre Modo Texto</h4>
+              <p style="font-size: 12px; color: #94a3b8; line-height: 1.4">
+                Dibuja cuadros de colores, textos sueltos o entradas en
+                cualquier lugar. Todo se exporta a <code>mt1.asm</code> y
+                <code>texto.bat</code>.
+              </p>
+            </div>
+
+            <!-- Lista de elementos dibujados en la pizarra de texto -->
+            <ul
+              id="text-fields-list"
+              class="history-list"
+              style="max-height: 380px; overflow-y: auto"
+            >
+              <!-- Inyectado por JS -->
+            </ul>
+          </div>
+
+          <div
+            class="sidebar-footer"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              padding: 12px;
+            "
+          >
+            <button
+              id="btn-export-text-asm"
+              class="btn btn-primary btn-block"
+              style="width: 100%"
+            >
+              <span class="btn-icon">📝</span> Exportar Modo Texto (mt1.asm +
+              texto.bat)
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <div id="video-mode-container" class="main-layout">
         <!-- IZQUIERDA: Canvas + Paleta -->
         <main class="canvas-section">
           <div class="canvas-wrapper">
@@ -240,14 +513,35 @@
             </div>
           </div>
 
-          <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px; padding: 12px;">
-            <button id="btn-export" class="btn btn-primary btn-block" style="width: 100%;">
+          <div
+            class="sidebar-footer"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              padding: 12px;
+            "
+          >
+            <button
+              id="btn-export"
+              class="btn btn-primary btn-block"
+              style="width: 100%"
+            >
               <span class="btn-icon">📦</span> Exportar .ASM (ZIP)
             </button>
-            <button id="btn-import-trigger" class="btn btn-secondary btn-block" style="width: 100%;">
+            <button
+              id="btn-import-trigger"
+              class="btn btn-secondary btn-block"
+              style="width: 100%"
+            >
               <span class="btn-icon">📥</span> Importar .ASM (ZIP)
             </button>
-            <input type="file" id="import-file-input" accept=".zip" style="display: none;">
+            <input
+              type="file"
+              id="import-file-input"
+              accept=".zip"
+              style="display: none"
+            />
           </div>
         </aside>
       </div>
