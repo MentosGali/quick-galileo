@@ -390,7 +390,16 @@ const BIOS_ATTR_COLORS = {
   "1FH": { bg: "#0000aa", fg: "#ffffff" },
   "70H": { bg: "#c0c0c0", fg: "#000000" },
   "0FH": { bg: "#000000", fg: "#ffffff" },
+  "1EH": { bg: "#0000aa", fg: "#ffff00" },
+  "2EH": { bg: "#0000aa", fg: "#ff00ff" },
+  "3EH": { bg: "#0000aa", fg: "#00ffff" },
+  "4FH": { bg: "#aa0000", fg: "#ffffff" },
+  "5FH": { bg: "#aa00aa", fg: "#ffffff" },
+  "6FH": { bg: "#00aa00", fg: "#ffffff" },
+  "7FH": { bg: "#aaaaaa", fg: "#000000" },
+  "8FH": { bg: "#555555", fg: "#ffffff" },
 };
+const BIOS_ATTR_COLOR_KEYS = Object.keys(BIOS_ATTR_COLORS);
 
 // ==========================================
 // ELEMENTOS DEL DOM
@@ -618,6 +627,68 @@ function setupEventListeners() {
     btnExportTextASM.addEventListener("click", exportTextModeASM);
   }
 
+  // Eventos de Importación de GIF
+  const btnImportGifTrigger = document.getElementById("btn-import-gif-trigger");
+  const gifFileInput = document.getElementById("gif-file-input");
+  if (btnImportGifTrigger && gifFileInput) {
+    btnImportGifTrigger.addEventListener("click", () => {
+      gifFileInput.click();
+    });
+    gifFileInput.addEventListener("change", handleImportGIFFile);
+  }
+
+  const btnCloseGifModal = document.getElementById("btn-close-gif-modal");
+  const btnCancelGifImport = document.getElementById("btn-cancel-gif-import");
+  const btnConfirmGifImport = document.getElementById("btn-confirm-gif-import");
+  const gifImportModal = document.getElementById("gif-import-modal");
+
+  if (btnCloseGifModal && gifImportModal) {
+    btnCloseGifModal.addEventListener("click", () => {
+      gifImportModal.classList.remove("active");
+    });
+  }
+  if (btnCancelGifImport && gifImportModal) {
+    btnCancelGifImport.addEventListener("click", () => {
+      gifImportModal.classList.remove("active");
+    });
+  }
+  if (btnConfirmGifImport) {
+    btnConfirmGifImport.addEventListener("click", processSelectedGIF);
+  }
+
+  const gifScalingSelect = document.getElementById("gif-scaling");
+  const gifScaleFactorField = document.getElementById("gif-scale-factor");
+  if (gifScalingSelect && gifScaleFactorField) {
+    const updateFactorState = () => {
+      gifScaleFactorField.disabled = gifScalingSelect.value !== "factor";
+    };
+    gifScalingSelect.addEventListener("change", updateFactorState);
+    updateFactorState();
+  }
+
+  const gifOffsetModeSelect = document.getElementById("gif-offset-mode");
+  const gifOffsetXField = document.getElementById("gif-offset-x");
+  const gifOffsetYField = document.getElementById("gif-offset-y");
+  if (gifOffsetModeSelect && gifOffsetXField && gifOffsetYField) {
+    const updateOffsetState = () => {
+      const isCustom = gifOffsetModeSelect.value === "custom";
+      gifOffsetXField.disabled = !isCustom;
+      gifOffsetYField.disabled = !isCustom;
+    };
+    gifOffsetModeSelect.addEventListener("change", updateOffsetState);
+    updateOffsetState();
+  }
+
+  const gifIgnoreColorModeSelect = document.getElementById("gif-ignore-color-mode");
+  const gifCustomIgnoreContainer = document.getElementById("gif-custom-ignore-container");
+  if (gifIgnoreColorModeSelect && gifCustomIgnoreContainer) {
+    const updateIgnoreColorState = () => {
+      gifCustomIgnoreContainer.style.display = gifIgnoreColorModeSelect.value === "custom" ? "block" : "none";
+    };
+    gifIgnoreColorModeSelect.addEventListener("change", updateIgnoreColorState);
+    updateIgnoreColorState();
+  }
+
   renderTextModeConsole();
   updateTextFieldsUI();
 }
@@ -697,6 +768,10 @@ let textRectStart = null;
 
 let isDraggingTextObj = false;
 let textDragOffset = { r: 0, c: 0 };
+let isResizingTextObj = false;
+let textResizeHandle = null;
+
+const TEXT_RESIZE_GRIP_SIZE = 1;
 
 function setupTextModeEvents() {
   const btnEnvVideo = document.getElementById("btn-env-video");
@@ -731,6 +806,36 @@ function setupTextModeEvents() {
   const ctxDel = document.getElementById("ctx-btn-delete");
   if (ctxSave) ctxSave.addEventListener("click", saveContextMenuProps);
   if (ctxDel) ctxDel.addEventListener("click", deleteContextMenuObj);
+
+  const ctxPalette = document.getElementById("ctx-color-palette");
+  const ctxInputText = document.getElementById("ctx-input-text");
+  const ctxInputRow = document.getElementById("ctx-input-row");
+  const ctxInputCol = document.getElementById("ctx-input-col");
+  const ctxInputMaxLen = document.getElementById("ctx-input-maxlen");
+
+  if (ctxPalette) {
+    ctxPalette.addEventListener("click", (event) => {
+      const swatch = event.target.closest("button[data-color]");
+      if (!swatch) return;
+      applyContextMenuColor(swatch.dataset.color);
+    });
+  }
+
+  if (ctxInputText) {
+    ctxInputText.addEventListener("input", applyContextMenuText);
+  }
+
+  if (ctxInputRow) {
+    ctxInputRow.addEventListener("input", applyContextMenuPosition);
+  }
+
+  if (ctxInputCol) {
+    ctxInputCol.addEventListener("input", applyContextMenuPosition);
+  }
+
+  if (ctxInputMaxLen) {
+    ctxInputMaxLen.addEventListener("input", applyContextMenuSize);
+  }
 
   document.addEventListener("click", (e) => {
     const ctxMenu = document.getElementById("text-context-menu");
@@ -808,12 +913,85 @@ function getTextObjectAtCoords(row, col) {
   return null;
 }
 
+function getCuadroBounds(obj) {
+  return {
+    minR: Math.min(obj.r1, obj.r2),
+    maxR: Math.max(obj.r1, obj.r2),
+    minC: Math.min(obj.c1, obj.c2),
+    maxC: Math.max(obj.c1, obj.c2),
+  };
+}
+
+function getResizeHandleAtCoords(obj, row, col) {
+  if (!obj || obj.type !== "cuadro") return null;
+  const { minR, maxR, minC, maxC } = getCuadroBounds(obj);
+  const near = (a, b) => Math.abs(a - b) <= TEXT_RESIZE_GRIP_SIZE;
+
+  if (near(row, minR) && near(col, minC)) return "nw";
+  if (near(row, minR) && near(col, maxC)) return "ne";
+  if (near(row, maxR) && near(col, minC)) return "sw";
+  if (near(row, maxR) && near(col, maxC)) return "se";
+  return null;
+}
+
+function clampTextCoords(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function applyResizeToCuadro(obj, handle, row, col) {
+  const minSize = 0;
+  if (!obj || obj.type !== "cuadro" || !handle) return;
+
+  if (handle === "nw") {
+    obj.r1 = clampTextCoords(row, 0, obj.r2 - minSize);
+    obj.c1 = clampTextCoords(col, 0, obj.c2 - minSize);
+  } else if (handle === "ne") {
+    obj.r1 = clampTextCoords(row, 0, obj.r2 - minSize);
+    obj.c2 = clampTextCoords(col, obj.c1 + minSize, 79);
+  } else if (handle === "sw") {
+    obj.r2 = clampTextCoords(row, obj.r1 + minSize, 24);
+    obj.c1 = clampTextCoords(col, 0, obj.c2 - minSize);
+  } else if (handle === "se") {
+    obj.r2 = clampTextCoords(row, obj.r1 + minSize, 24);
+    obj.c2 = clampTextCoords(col, obj.c1 + minSize, 79);
+  }
+}
+
 function handleTextConsoleMouseMove(e) {
   const coords = getConsoleCoords(e);
   const hoverEl = document.getElementById("text-coords-hover");
   if (hoverEl) hoverEl.textContent = `Col: ${coords.col}  Row: ${coords.row}`;
 
-  if (isDraggingTextObj && activeSelectedTextObjId !== null) {
+  const hoveredObj = getTextObjectAtCoords(coords.row, coords.col);
+  const hoveredHandle = hoveredObj
+    ? getResizeHandleAtCoords(hoveredObj, coords.row, coords.col)
+    : null;
+
+  if (!isDraggingTextObj && !isResizingTextObj) {
+    const consoleEl = document.getElementById("text-console");
+    if (consoleEl) {
+      if (hoveredHandle === "nw" || hoveredHandle === "se") {
+        consoleEl.style.cursor = "nwse-resize";
+      } else if (hoveredHandle === "ne" || hoveredHandle === "sw") {
+        consoleEl.style.cursor = "nesw-resize";
+      } else if (hoveredObj) {
+        consoleEl.style.cursor =
+          textToolMode === "select" ? "move" : "crosshair";
+      } else {
+        consoleEl.style.cursor =
+          textToolMode === "select" ? "default" : "crosshair";
+      }
+    }
+  }
+
+  if (isResizingTextObj && activeSelectedTextObjId !== null) {
+    const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+    if (obj) {
+      applyResizeToCuadro(obj, textResizeHandle, coords.row, coords.col);
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (isDraggingTextObj && activeSelectedTextObjId !== null) {
     const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
     if (obj) {
       if (obj.type === "cuadro") {
@@ -848,7 +1026,15 @@ function handleTextConsoleMouseDown(e) {
 
   if (hitObj && (textToolMode === "select" || e.shiftKey)) {
     activeSelectedTextObjId = hitObj.id;
-    isDraggingTextObj = true;
+    const resizeHandle = getResizeHandleAtCoords(
+      hitObj,
+      coords.row,
+      coords.col,
+    );
+    isResizingTextObj = hitObj.type === "cuadro" && resizeHandle !== null;
+    isDraggingTextObj = !isResizingTextObj;
+    textResizeHandle = isResizingTextObj ? resizeHandle : null;
+
     textDragOffset = {
       r: coords.row - (hitObj.type === "cuadro" ? hitObj.r1 : hitObj.row),
       c: coords.col - (hitObj.type === "cuadro" ? hitObj.c1 : hitObj.col),
@@ -915,6 +1101,8 @@ function handleTextConsoleMouseDown(e) {
 
 function handleTextConsoleMouseUp() {
   isDraggingTextObj = false;
+  isResizingTextObj = false;
+  textResizeHandle = null;
 }
 
 function handleTextConsoleContextMenu(e) {
@@ -928,41 +1116,133 @@ function handleTextConsoleContextMenu(e) {
   }
   activeSelectedTextObjId = obj.id;
   renderTextModeConsole();
-  document.getElementById("ctx-title").textContent =
-    `Propiedades (${obj.type.toUpperCase()})`;
-  document.getElementById("ctx-field-text").style.display =
-    obj.type === "label" ? "block" : "none";
-  document.getElementById("ctx-field-var").style.display =
-    obj.type === "label" || obj.type === "input" ? "block" : "none";
-  document.getElementById("ctx-field-maxlen").style.display =
-    obj.type === "input" ? "block" : "none";
-  if (obj.type === "label")
-    document.getElementById("ctx-input-text").value = obj.text || "";
-  if (obj.type === "label" || obj.type === "input")
-    document.getElementById("ctx-input-var").value = obj.varName || "";
-  if (obj.type === "input")
-    document.getElementById("ctx-input-maxlen").value = obj.maxLen || 5;
-  document.getElementById("ctx-select-color").value = obj.color || "71H";
+  syncTextContextMenuUI(obj);
   ctxMenu.style.display = "block";
   ctxMenu.style.left = `${Math.min(window.innerWidth - 240, e.clientX + 10)}px`;
   ctxMenu.style.top = `${Math.min(window.innerHeight - 250, e.clientY + 10)}px`;
 }
 
 function saveContextMenuProps() {
+  document.getElementById("text-context-menu").style.display = "none";
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function syncTextContextMenuUI(obj) {
+  const ctxTitle = document.getElementById("ctx-title");
+  const fieldText = document.getElementById("ctx-field-text");
+  const fieldPos = document.getElementById("ctx-field-pos");
+  const fieldMaxLen = document.getElementById("ctx-field-maxlen");
+  const fieldColor = document.getElementById("ctx-field-color");
+  const currentText = document.getElementById("ctx-current-text");
+  const inputText = document.getElementById("ctx-input-text");
+  const inputRow = document.getElementById("ctx-input-row");
+  const inputCol = document.getElementById("ctx-input-col");
+  const inputMaxLen = document.getElementById("ctx-input-maxlen");
+
+  if (ctxTitle)
+    ctxTitle.textContent = `Propiedades (${obj.type.toUpperCase()})`;
+  if (fieldText)
+    fieldText.style.display = obj.type === "label" ? "block" : "none";
+  if (fieldPos)
+    fieldPos.style.display =
+      obj.type === "label" || obj.type === "input" ? "block" : "none";
+  if (fieldMaxLen)
+    fieldMaxLen.style.display = obj.type === "input" ? "block" : "none";
+  if (fieldColor) fieldColor.style.display = "block";
+
+  if (currentText) currentText.textContent = `Actual: ${obj.text || "(vacío)"}`;
+  if (inputText) inputText.value = obj.text || "";
+  if (inputRow) inputRow.value = typeof obj.row === "number" ? obj.row : 0;
+  if (inputCol) inputCol.value = typeof obj.col === "number" ? obj.col : 0;
+  if (inputMaxLen) inputMaxLen.value = obj.maxLen || 5;
+
+  renderContextColorPalette(obj.color || "71H");
+
+  setTimeout(() => {
+    if (obj.type === "label" && inputText) inputText.focus();
+    if (obj.type === "input" && inputMaxLen) inputMaxLen.focus();
+  }, 0);
+}
+
+function renderContextColorPalette(activeColor) {
+  const palette = document.getElementById("ctx-color-palette");
+  if (!palette) return;
+
+  palette.innerHTML = "";
+  BIOS_ATTR_COLOR_KEYS.forEach((colorKey) => {
+    const color = BIOS_ATTR_COLORS[colorKey];
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className =
+      "ctx-color-swatch" + (colorKey === activeColor ? " active" : "");
+    swatch.dataset.color = colorKey;
+    swatch.title = colorKey;
+    swatch.style.background = `linear-gradient(180deg, ${color.bg}, ${color.fg})`;
+    palette.appendChild(swatch);
+  });
+}
+
+function applyContextMenuText() {
   if (activeSelectedTextObjId === null) return;
   const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
-  if (!obj) return;
+  const inputText = document.getElementById("ctx-input-text");
+  if (!obj || !inputText) return;
+
   if (obj.type === "label") {
-    obj.text = document.getElementById("ctx-input-text").value || "";
-    obj.varName = document.getElementById("ctx-input-var").value || obj.varName;
-  } else if (obj.type === "input") {
-    obj.varName = document.getElementById("ctx-input-var").value || obj.varName;
-    obj.maxLen =
-      parseInt(document.getElementById("ctx-input-maxlen").value, 10) ||
-      obj.maxLen;
+    obj.text = inputText.value || "";
+    const currentText = document.getElementById("ctx-current-text");
+    if (currentText)
+      currentText.textContent = `Actual: ${obj.text || "(vacío)"}`;
   }
-  obj.color = document.getElementById("ctx-select-color").value;
-  document.getElementById("text-context-menu").style.display = "none";
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuPosition() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  const inputRow = document.getElementById("ctx-input-row");
+  const inputCol = document.getElementById("ctx-input-col");
+  if (!obj || !inputRow || !inputCol) return;
+
+  const nextRow = parseInt(inputRow.value, 10);
+  const nextCol = parseInt(inputCol.value, 10);
+  if (!Number.isNaN(nextRow)) {
+    obj.row = clampTextCoords(nextRow, 0, 24);
+  }
+  if (!Number.isNaN(nextCol)) {
+    obj.col = clampTextCoords(nextCol, 0, 79);
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuSize() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  const inputMaxLen = document.getElementById("ctx-input-maxlen");
+  if (!obj || !inputMaxLen) return;
+
+  if (obj.type === "input") {
+    const nextValue = parseInt(inputMaxLen.value, 10);
+    obj.maxLen =
+      Number.isFinite(nextValue) && nextValue > 0 ? nextValue : obj.maxLen;
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuColor(colorKey) {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  if (!obj || !colorKey) return;
+
+  obj.color = colorKey;
+  renderContextColorPalette(colorKey);
   renderTextModeConsole();
   updateTextFieldsUI();
 }
@@ -1036,14 +1316,46 @@ function renderTextModeConsole() {
           if (r < 25 && c < 80) {
             grid[r][c] = {
               char: " ",
-              bg: isSelected ? "#a855f7" : cColor.bg,
+              bg: cColor.bg,
               fg: cColor.fg,
             };
           }
         }
       }
+
+      if (isSelected) {
+        for (let c = minC; c <= maxC; c++) {
+          if (minR < 25 && c < 80) {
+            grid[minR][c] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+          if (maxR < 25 && c < 80) {
+            grid[maxR][c] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+        }
+        for (let r = minR; r <= maxR; r++) {
+          if (r < 25 && minC < 80) {
+            grid[r][minC] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+          if (r < 25 && maxC < 80) {
+            grid[r][maxC] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+        }
+        const corners = [
+          [minR, minC],
+          [minR, maxC],
+          [maxR, minC],
+          [maxR, maxC],
+        ];
+        corners.forEach(([r, c]) => {
+          if (r < 25 && c < 80) {
+            grid[r][c] = { char: "■", bg: "#a855f7", fg: "#ffffff" };
+          }
+        });
+      }
     } else if (obj.type === "label") {
       const txt = obj.text || "";
+      const attr = obj.color || "71H";
+      let cursorCol = obj.col;
       for (let i = 0; i < txt.length; i++) {
         if (obj.row < 25 && obj.col + i < 80) {
           grid[obj.row][obj.col + i] = {
@@ -1051,9 +1363,11 @@ function renderTextModeConsole() {
             bg: isSelected ? "#a855f7" : cColor.bg,
             fg: isSelected ? "#fff" : cColor.fg,
           };
+          cursorCol = obj.col + i;
         }
       }
     } else if (obj.type === "input") {
+      const attr = obj.color || "21H";
       for (let i = 0; i < (obj.maxLen || 5); i++) {
         if (obj.row < 25 && obj.col + i < 80) {
           grid[obj.row][obj.col + i] = {
@@ -1144,28 +1458,36 @@ function generateMode2ASM() {
   let dataLines = [];
   let codeExecutions = [];
 
+  const escapeAsmText = (value) =>
+    String(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '""')
+      .replace(/\r?\n/g, " ");
+
   textBoardObjects.forEach((obj, idx) => {
     if (obj.type === "cuadro") {
-      const r1Hex =
-        Math.min(obj.r1, obj.r2).toString(16).padStart(2, "0").toUpperCase() +
-        "H";
-      const c1Hex =
-        Math.min(obj.c1, obj.c2).toString(16).padStart(2, "0").toUpperCase() +
-        "H";
-      const r2Hex =
-        Math.max(obj.r1, obj.r2).toString(16).padStart(2, "0").toUpperCase() +
-        "H";
-      const c2Hex =
-        Math.max(obj.c1, obj.c2).toString(16).padStart(2, "0").toUpperCase() +
-        "H";
+      const minRow = Math.min(obj.r1, obj.r2);
+      const minCol = Math.min(obj.c1, obj.c2);
+      const maxRow = Math.max(obj.r1, obj.r2);
+      const maxCol = Math.max(obj.c1, obj.c2);
+      const cxHex =
+        (((minRow & 0xff) << 8) | (minCol & 0xff))
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase() + "H";
+      const dxHex =
+        (((maxRow & 0xff) << 8) | (maxCol & 0xff))
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase() + "H";
 
       const macroName = `cuadro_${idx + 1}`;
       macros.push(
         `${macroName} MACRO\n` +
           `MOV AX, 0600H\n` +
           `MOV BH, ${obj.color || "71H"}\n` +
-          `MOV CX, ${r1Hex}${c1Hex}\n` +
-          `MOV DX, ${r2Hex}${c2Hex}\n` +
+          `MOV CX, ${cxHex}\n` +
+          `MOV DX, ${dxHex}\n` +
           `INT 10H\n` +
           `ENDM\n`,
       );
@@ -1174,6 +1496,7 @@ function generateMode2ASM() {
       const varName = obj.varName || `lbl_${idx + 1}`;
       const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
       const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colorAttr = obj.color || "71H";
 
       macros.push(
         `text_${varName} MACRO\n` +
@@ -1182,22 +1505,43 @@ function generateMode2ASM() {
           `MOV DH, ${rowHex}\n` +
           `MOV DL, ${colHex}\n` +
           `INT 10H\n` +
+          `LEA SI, ${varName}\n` +
+          `MOV BL, ${colorAttr}\n` +
+          `text_${varName}_loop:\n` +
+          `LODSB\n` +
+          `CMP AL, '$'\n` +
+          `JE text_${varName}_end\n` +
           `MOV AH, 09H\n` +
-          `LEA DX, ${varName}\n` +
-          `INT 21H\n` +
+          `MOV BH, 00\n` +
+          `MOV CX, 1\n` +
+          `INT 10H\n` +
+          `JMP text_${varName}_loop\n` +
+          `text_${varName}_end:\n` +
           `ENDM\n`,
       );
 
-      dataLines.push(`${varName} DB '${obj.text || ""}', '$'`);
+      dataLines.push(`${varName} DB "${escapeAsmText(obj.text || "")}", '$'`);
       codeExecutions.push(`text_${varName}`);
     } else if (obj.type === "input") {
       const varName = obj.varName || `e_input${idx + 1}`;
       const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
       const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
       const reservLen = (obj.maxLen || 5) + 4;
+      const colorAttr = obj.color || "21H";
 
       macros.push(
         `entrada_${varName} MACRO\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `MOV AH, 09H\n` +
+          `MOV AL, ' '\n` +
+          `MOV BH, 00\n` +
+          `MOV BL, ${colorAttr}\n` +
+          `MOV CX, ${obj.maxLen || 5}\n` +
+          `INT 10H\n` +
           `MOV AH, 02H\n` +
           `MOV BH, 00\n` +
           `MOV DH, ${rowHex}\n` +
@@ -2859,6 +3203,365 @@ function parseAsmContentWithSprites(content) {
   });
 
   return { rectangles, sprites: appSprites };
+}
+
+// ==========================================
+// IMPORTACIÓN Y PROCESAMIENTO DE GIF ANIMADO
+// ==========================================
+
+let currentGifInfo = {
+  frames: [],
+  width: 0,
+  height: 0,
+  filename: ""
+};
+
+/**
+ * Reconstruye los fotogramas de un GIF teniendo en cuenta los métodos de descarte (Disposal Methods).
+ */
+function reconstructGIF(gifFrames, gifWidth, gifHeight) {
+  const canvas = document.createElement("canvas");
+  canvas.width = gifWidth;
+  canvas.height = gifHeight;
+  const ctx = canvas.getContext("2d");
+
+  const frameImages = []; // Array de ImageData
+  const canvasStates = []; // Historial de estados para disposalType === 3
+
+  for (let index = 0; index < gifFrames.length; index++) {
+    const frame = gifFrames[index];
+
+    // Guardar el estado actual del lienzo (antes de dibujar) para disposalType === 3
+    const backup = ctx.getImageData(0, 0, gifWidth, gifHeight);
+
+    // Procesar el descarte del frame anterior
+    if (index > 0) {
+      const prevFrame = gifFrames[index - 1];
+      if (prevFrame.disposalType === 2) {
+        // Limpiar el área del fotograma anterior
+        ctx.clearRect(
+          prevFrame.dims.left,
+          prevFrame.dims.top,
+          prevFrame.dims.width,
+          prevFrame.dims.height
+        );
+      } else if (prevFrame.disposalType === 3) {
+        // Restaurar al estado previo
+        const prevState = canvasStates.pop();
+        if (prevState) {
+          ctx.putImageData(prevState, 0, 0);
+        }
+      }
+    }
+
+    // Guardar el backup en el historial
+    canvasStates.push(backup);
+
+    // Dibujar el parche del frame actual
+    const patchCanvas = document.createElement("canvas");
+    patchCanvas.width = frame.dims.width;
+    patchCanvas.height = frame.dims.height;
+    const patchCtx = patchCanvas.getContext("2d");
+    const imgData = patchCtx.createImageData(frame.dims.width, frame.dims.height);
+    imgData.data.set(frame.patch);
+    patchCtx.putImageData(imgData, 0, 0);
+
+    ctx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
+
+    // Guardar imagen final compuesta de este fotograma
+    frameImages.push(ctx.getImageData(0, 0, gifWidth, gifHeight));
+  }
+
+  return frameImages;
+}
+
+/**
+ * Maneja la selección del archivo GIF y abre el modal de opciones de importación.
+ */
+async function handleImportGIFFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const gifImportModal = document.getElementById("gif-import-modal");
+  const gifInfoDetails = document.getElementById("gif-info-details");
+  const btnConfirm = document.getElementById("btn-confirm-gif-import");
+
+  if (!gifImportModal || !gifInfoDetails) return;
+
+  try {
+    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Cargando archivo y dependencias...</span>';
+    gifImportModal.classList.add("active");
+    btnConfirm.disabled = true;
+
+    // Importación dinámica de la librería de descompresión de GIF
+    const { parseGIF, decompressFrames } = await import("https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm");
+
+    // Leer el archivo como ArrayBuffer
+    const arrayBuffer = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+
+    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Decodificando fotogramas de la animación...</span>';
+    const parsedGif = parseGIF(arrayBuffer);
+    const decompressed = decompressFrames(parsedGif, true);
+
+    if (!decompressed || decompressed.length === 0) {
+      throw new Error("No se encontraron fotogramas válidos en el archivo GIF.");
+    }
+
+    currentGifInfo = {
+      frames: decompressed,
+      width: decompressed[0].dims.width,
+      height: decompressed[0].dims.height,
+      filename: file.name
+    };
+
+    gifInfoDetails.innerHTML = `
+      <strong>Archivo:</strong> ${file.name}<br>
+      <strong>Dimensiones originales:</strong> ${currentGifInfo.width}x${currentGifInfo.height} px<br>
+      <strong>Total fotogramas:</strong> ${decompressed.length}
+    `;
+
+    if (currentGifInfo.width > 320 || currentGifInfo.height > 200) {
+      gifInfoDetails.innerHTML += `<br><span style="color: var(--accent-orange); font-weight: 600;">⚠️ El GIF es mayor que 320x200 px. Se escalará proporcionalmente de forma automática.</span>`;
+    }
+
+    btnConfirm.disabled = false;
+  } catch (err) {
+    console.error(err);
+    gifInfoDetails.innerHTML = `<span style="color: var(--danger);">Error: ${err.message}</span>`;
+    btnConfirm.disabled = true;
+  } finally {
+    e.target.value = "";
+  }
+}
+
+/**
+ * Procesa los fotogramas según la configuración elegida e integra los datos de fotogramas ASM.
+ */
+async function processSelectedGIF() {
+  if (!currentGifInfo || currentGifInfo.frames.length === 0) {
+    alert("No hay datos de GIF cargados.");
+    return;
+  }
+
+  const gifImportModal = document.getElementById("gif-import-modal");
+  const scaling = document.getElementById("gif-scaling").value;
+  const scaleFactorInput = document.getElementById("gif-scale-factor");
+  const scaleFactor = parseInt(scaleFactorInput.value, 10) || 1;
+  const offsetMode = document.getElementById("gif-offset-mode").value;
+  const offsetXInput = document.getElementById("gif-offset-x");
+  const offsetYInput = document.getElementById("gif-offset-y");
+  const customOffsetX = parseInt(offsetXInput.value, 10) || 0;
+  const customOffsetY = parseInt(offsetYInput.value, 10) || 0;
+  const optimization = document.getElementById("gif-optimization").value;
+  const importMode = document.getElementById("gif-import-mode").value;
+  const maxFramesInput = document.getElementById("gif-max-frames");
+  const maxFramesLimit = parseInt(maxFramesInput.value, 10) || 0;
+  const ignoreTransparent = document.getElementById("gif-ignore-background").checked;
+
+  if (gifImportModal) {
+    gifImportModal.classList.remove("active");
+  }
+
+  // Reconstruir fotogramas completos
+  const renderedFrames = reconstructGIF(currentGifInfo.frames, currentGifInfo.width, currentGifInfo.height);
+
+  let framesToImport = renderedFrames;
+  if (maxFramesLimit > 0 && maxFramesLimit < renderedFrames.length) {
+    framesToImport = renderedFrames.slice(0, maxFramesLimit);
+  }
+
+  // Limpiar o anexar
+  if (importMode === "replace") {
+    frames = [];
+    frameIdCounter = 0;
+    rectangleIdCounter = 0;
+  }
+
+  // Caché de colores VGA para un mapeo veloz
+  const colorCache = new Map();
+  function getCachedClosestVGAColor(r, g, b) {
+    const key = (r << 16) | (g << 8) | b;
+    if (colorCache.has(key)) return colorCache.get(key);
+
+    let minDistance = Infinity;
+    let closestIndex = 15; // default blanco
+    for (let i = 0; i < VGA_PALETTE.length; i++) {
+      const [vr, vg, vb] = VGA_PALETTE[i];
+      const dist = (r - vr) ** 2 + (g - vg) ** 2 + (b - vb) ** 2;
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+    colorCache.set(key, closestIndex);
+    return closestIndex;
+  }
+
+  const targetWidth = 320;
+  const targetHeight = 200;
+  const newImportedFrames = [];
+
+  for (let fIdx = 0; fIdx < framesToImport.length; fIdx++) {
+    const imgData = framesToImport[fIdx];
+
+    // Lienzo del fotograma original
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = currentGifInfo.width;
+    tempCanvas.height = currentGifInfo.height;
+    tempCanvas.getContext("2d").putImageData(imgData, 0, 0);
+
+    // Lienzo escalado de destino (VGA 320x200)
+    const vgaCanvas = document.createElement("canvas");
+    vgaCanvas.width = targetWidth;
+    vgaCanvas.height = targetHeight;
+    const vgaCtx = vgaCanvas.getContext("2d");
+    vgaCtx.imageSmoothingEnabled = false; // Mapeo exacto pixel art sin difuminados
+
+    let sw = currentGifInfo.width;
+    let sh = currentGifInfo.height;
+
+    if (scaling === "center-fit") {
+      const scale = Math.min(targetWidth / currentGifInfo.width, targetHeight / currentGifInfo.height);
+      sw = currentGifInfo.width * scale;
+      sh = currentGifInfo.height * scale;
+    } else if (scaling === "stretch") {
+      sw = targetWidth;
+      sh = targetHeight;
+    } else if (scaling === "factor") {
+      sw = currentGifInfo.width * scaleFactor;
+      sh = currentGifInfo.height * scaleFactor;
+    }
+
+    let dx = 0;
+    let dy = 0;
+    if (offsetMode === "center") {
+      dx = Math.floor((targetWidth - sw) / 2);
+      dy = Math.floor((targetHeight - sh) / 2);
+    } else {
+      dx = customOffsetX;
+      dy = customOffsetY;
+    }
+
+    // Dibujar frame redimensionado en el buffer VGA
+    vgaCtx.drawImage(tempCanvas, 0, 0, currentGifInfo.width, currentGifInfo.height, dx, dy, sw, sh);
+
+    const vgaImgData = vgaCtx.getImageData(0, 0, targetWidth, targetHeight);
+    const data = vgaImgData.data;
+
+    const frameRectangles = [];
+
+    if (optimization === "row-span") {
+      // Optimización: Scanlines con DRAW_REGION
+      for (let y = 0; y < targetHeight; y++) {
+        let startX = -1;
+        let currentColorIndex = -1;
+
+        for (let x = 0; x <= targetWidth; x++) {
+          let hasPixel = false;
+          let mappedColor = -1;
+
+          if (x < targetWidth) {
+            const idx = (y * targetWidth + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const a = data[idx + 3];
+
+            const isTransparent = ignoreTransparent && (a < 128);
+            if (!isTransparent) {
+              hasPixel = true;
+              mappedColor = getCachedClosestVGAColor(r, g, b);
+            }
+          }
+
+          if (currentColorIndex !== -1) {
+            if (x === targetWidth || !hasPixel || mappedColor !== currentColorIndex) {
+              const length = x - startX;
+              if (length === 1) {
+                frameRectangles.push({
+                  id: ++rectangleIdCounter,
+                  type: "pixel",
+                  x1: startX,
+                  y1: y,
+                  x2: startX,
+                  y2: y,
+                  colorIndex: currentColorIndex
+                });
+              } else {
+                frameRectangles.push({
+                  id: ++rectangleIdCounter,
+                  type: "rect",
+                  x1: startX,
+                  y1: y,
+                  x2: x - 1,
+                  y2: y,
+                  colorIndex: currentColorIndex
+                });
+              }
+              if (x < targetWidth && hasPixel) {
+                startX = x;
+                currentColorIndex = mappedColor;
+              } else {
+                startX = -1;
+                currentColorIndex = -1;
+              }
+            }
+          } else if (x < targetWidth && hasPixel) {
+            startX = x;
+            currentColorIndex = mappedColor;
+          }
+        }
+      }
+    } else {
+      // Sin optimización: PINTAR_PIXEL para cada uno
+      for (let y = 0; y < targetHeight; y++) {
+        for (let x = 0; x < targetWidth; x++) {
+          const idx = (y * targetWidth + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+
+          const isTransparent = ignoreTransparent && (a < 128);
+          if (!isTransparent) {
+            const mappedColor = getCachedClosestVGAColor(r, g, b);
+            frameRectangles.push({
+              id: ++rectangleIdCounter,
+              type: "pixel",
+              x1: x,
+              y1: y,
+              x2: x,
+              y2: y,
+              colorIndex: mappedColor
+            });
+          }
+        }
+      }
+    }
+
+    const fObj = {
+      id: ++frameIdCounter,
+      name: `GIF F${fIdx + 1}`,
+      rectangles: frameRectangles,
+      sprites: [],
+      visible: true
+    };
+    frames.push(fObj);
+    newImportedFrames.push(fObj);
+  }
+
+  if (newImportedFrames.length > 0) {
+    switchToFrame(newImportedFrames[0].id);
+  } else {
+    switchToBackground();
+  }
+
+  alert(`Importación exitosa. Se han generado ${framesToImport.length} fotogramas compatibles en la secuencia.`);
 }
 
 /**

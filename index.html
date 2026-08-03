@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -169,7 +169,7 @@
               style="
                 background: #000;
                 border: 2px solid #334155;
-                border-radius: 8px;
+                border-radius: 0;
                 overflow: hidden;
                 position: relative;
               "
@@ -234,8 +234,14 @@
 
           <div id="ctx-field-text" style="margin-bottom: 6px">
             <label style="font-size: 10px; color: #94a3b8; display: block"
-              >Texto / Etiqueta:</label
+              >Texto actual / nuevo</label
             >
+            <div
+              id="ctx-current-text"
+              style="font-size: 10px; color: #a5b4fc; margin-bottom: 4px"
+            >
+              Actual: -
+            </div>
             <input
               type="text"
               id="ctx-input-text"
@@ -244,21 +250,35 @@
             />
           </div>
 
-          <div id="ctx-field-var" style="margin-bottom: 6px">
+          <div id="ctx-field-pos" style="margin-bottom: 6px">
             <label style="font-size: 10px; color: #94a3b8; display: block"
-              >Nombre Variable ASM:</label
+              >Posición del cursor</label
             >
-            <input
-              type="text"
-              id="ctx-input-var"
-              class="layer-name-input"
-              style="width: 100%; border: 1px solid #334155"
-            />
+            <div style="display: flex; gap: 6px">
+              <input
+                type="number"
+                id="ctx-input-row"
+                min="0"
+                max="24"
+                class="layer-name-input"
+                style="width: 50%; border: 1px solid #334155"
+                placeholder="Row"
+              />
+              <input
+                type="number"
+                id="ctx-input-col"
+                min="0"
+                max="79"
+                class="layer-name-input"
+                style="width: 50%; border: 1px solid #334155"
+                placeholder="Col"
+              />
+            </div>
           </div>
 
           <div id="ctx-field-maxlen" style="margin-bottom: 6px">
             <label style="font-size: 10px; color: #94a3b8; display: block"
-              >Max Caracteres:</label
+              >Tamaño / max caracteres</label
             >
             <input
               type="number"
@@ -270,29 +290,11 @@
             />
           </div>
 
-          <div style="margin-bottom: 8px">
+          <div id="ctx-field-color" style="margin-bottom: 8px">
             <label style="font-size: 10px; color: #94a3b8; display: block"
-              >Atributo Color BIOS:</label
+              >Color BIOS</label
             >
-            <select
-              id="ctx-select-color"
-              class="layer-name-input"
-              style="
-                width: 100%;
-                background: #0f172a;
-                border: 1px solid #334155;
-                color: #fff;
-              "
-            >
-              <option value="71H">71H (Fondo Gris, Texto Azul)</option>
-              <option value="00CH">00CH (Fondo Negro, Texto Rojo)</option>
-              <option value="016H">016H (Fondo Azul, Texto Cyan)</option>
-              <option value="21H">21H (Fondo Verde, Texto Azul)</option>
-              <option value="4EH">4EH (Fondo Rojo, Texto Amarillo)</option>
-              <option value="1FH">1FH (Fondo Azul, Texto Blanco)</option>
-              <option value="70H">70H (Fondo Gris, Texto Negro)</option>
-              <option value="0FH">0FH (Fondo Negro, Texto Blanco)</option>
-            </select>
+            <div id="ctx-color-palette" class="ctx-color-palette"></div>
           </div>
 
           <div style="display: flex; gap: 6px">
@@ -536,16 +538,131 @@
             >
               <span class="btn-icon">📥</span> Importar .ASM (ZIP)
             </button>
+            <button
+              id="btn-import-gif-trigger"
+              class="btn btn-secondary btn-block"
+              style="width: 100%"
+            >
+              <span class="btn-icon">🖼️</span> Importar GIF animado
+            </button>
             <input
               type="file"
               id="import-file-input"
               accept=".zip"
               style="display: none"
             />
+            <input
+              type="file"
+              id="gif-file-input"
+              accept=".gif"
+              style="display: none"
+            />
           </div>
         </aside>
       </div>
     </div>
+
+    <!-- Modal para Importación de GIF Animado -->
+    <div id="gif-import-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="gif-modal-title">Configuración de Importación de GIF</h3>
+          <button id="btn-close-gif-modal" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-info-panel">
+            <div class="modal-info-title">Detalles del Archivo</div>
+            <div id="gif-info-details" class="modal-info-text">Analizando archivo...</div>
+          </div>
+          
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-scaling">Escalado / Tamaño</label>
+              <select id="gif-scaling">
+                <option value="center-fit" selected>Ajustar a 320x200 (Proporcional)</option>
+                <option value="stretch">Estirar a 320x200 (Llenar pantalla)</option>
+                <option value="none">Mantener tamaño original (1:1)</option>
+                <option value="factor">Multiplicador de escala</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="gif-scale-factor">Factor de escala</label>
+              <input type="number" id="gif-scale-factor" value="1" min="1" max="10" step="1" />
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-offset-mode">Alineación / Posición</label>
+              <select id="gif-offset-mode">
+                <option value="center" selected>Centrado automáticamente</option>
+                <option value="custom">Desplazamiento personalizado (X, Y)</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <div class="modal-row" style="gap: 6px;">
+                <div class="modal-field">
+                  <label for="gif-offset-x" style="font-size: 0.75rem; color: var(--text-muted);">Offset X</label>
+                  <input type="number" id="gif-offset-x" value="0" />
+                </div>
+                <div class="modal-field">
+                  <label for="gif-offset-y" style="font-size: 0.75rem; color: var(--text-muted);">Offset Y</label>
+                  <input type="number" id="gif-offset-y" value="0" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-optimization">Optimización TASM 16 bits</label>
+              <select id="gif-optimization">
+                <option value="row-span" selected>DRAW_REGION (Líneas horizontales - Recomendado)</option>
+                <option value="pixel">PINTAR_PIXEL (Píxel por píxel - Muy pesado)</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="gif-import-mode">Acción de importación</label>
+              <select id="gif-import-mode">
+                <option value="replace" selected>Reemplazar fotogramas existentes</option>
+                <option value="append">Añadir al final de la secuencia</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label for="gif-max-frames">Límite de fotogramas a importar</label>
+            <input type="number" id="gif-max-frames" value="0" min="0" title="0 para importar todos los fotogramas del GIF" />
+            <span style="font-size: 0.75rem; color: var(--text-muted);">0 = Importar todos los fotogramas. Recomendado: &lt;= 24 para evitar límites de TASM.</span>
+          </div>
+
+          <div class="modal-field" style="flex-direction: row; gap: 8px; align-items: center; margin-top: 4px;">
+            <input type="checkbox" id="gif-ignore-background" checked />
+            <label for="gif-ignore-background" style="font-weight: normal; cursor: pointer; user-select: none;">Ignorar píxeles transparentes del GIF</label>
+          </div>
+
+          <div class="modal-row" style="margin-top: 4px;">
+            <div class="modal-field">
+              <label for="gif-ignore-color-mode">Color VGA a ignorar (adicional)</label>
+              <select id="gif-ignore-color-mode">
+                <option value="none" selected>Ninguno</option>
+                <option value="index0">Índice 0 (Negro - Recomendado para reducir tamaño)</option>
+                <option value="custom">Índice personalizado</option>
+              </select>
+            </div>
+            <div class="modal-field" id="gif-custom-ignore-container" style="display: none;">
+              <label for="gif-ignore-color-index">Índice de color VGA (0-255)</label>
+              <input type="number" id="gif-ignore-color-index" value="0" min="0" max="255" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-gif-import" class="btn btn-secondary">Cancelar</button>
+          <button id="btn-confirm-gif-import" class="btn btn-primary">Importar Fotogramas</button>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
