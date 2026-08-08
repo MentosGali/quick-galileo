@@ -326,6 +326,12 @@ const COSTOS_BYTES = {
   TEXTO: 15,
   CURSOR: 10,
 };
+/** Índice reservado: píxel transparente en frames superpuestos sobre el fondo. */
+const CANVAS_WIDTH = 320;
+const CANVAS_HEIGHT = 200;
+const BITMAP_SKIP_INDEX = 255;
+/** Por encima de este umbral se exporta como bitmap (1 .asm por capa). */
+const BITMAP_EXPORT_THRESHOLD = 250;
 const LIMITE_MEMORIA_BYTES = 400 * 1024;
 let memoriaConsumida = 0;
 
@@ -337,6 +343,69 @@ let selectedTemplateId = null;
 let templateIdCounter = 0;
 
 let canvasTooltip = null;
+
+// ==========================================
+// ESTADO Y LÓGICA DEL MODO 2: TEXTO 80x25
+// ==========================================
+let currentEnvironment = "video"; // "video" | "text"
+
+let mode2Fields = [
+  {
+    id: 1,
+    varName: "boleto",
+    label: "Boleto:",
+    maxLen: 2,
+    row: 5,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "016H",
+    colorCampo: "016H",
+  },
+  {
+    id: 2,
+    varName: "destino",
+    label: "Destino:",
+    maxLen: 16,
+    row: 10,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "21H",
+    colorCampo: "21H",
+  },
+  {
+    id: 3,
+    varName: "precio",
+    label: "Precio:",
+    maxLen: 4,
+    row: 16,
+    colLabel: 18,
+    colInput: 30,
+    colorCuadro: "21H",
+    colorCampo: "21H",
+  },
+];
+let textFieldsIdCounter = 3;
+
+// Colores aproximados de los atributos de color BIOS
+const BIOS_ATTR_COLORS = {
+  "71H": { bg: "#c0c0c0", fg: "#0000aa" },
+  "00CH": { bg: "#000000", fg: "#ff5555" },
+  "016H": { bg: "#0000aa", fg: "#55ffff" },
+  "21H": { bg: "#00aa00", fg: "#0000aa" },
+  "4EH": { bg: "#aa0000", fg: "#ffff55" },
+  "1FH": { bg: "#0000aa", fg: "#ffffff" },
+  "70H": { bg: "#c0c0c0", fg: "#000000" },
+  "0FH": { bg: "#000000", fg: "#ffffff" },
+  "1EH": { bg: "#0000aa", fg: "#ffff00" },
+  "2EH": { bg: "#0000aa", fg: "#ff00ff" },
+  "3EH": { bg: "#0000aa", fg: "#00ffff" },
+  "4FH": { bg: "#aa0000", fg: "#ffffff" },
+  "5FH": { bg: "#aa00aa", fg: "#ffffff" },
+  "6FH": { bg: "#00aa00", fg: "#ffffff" },
+  "7FH": { bg: "#aaaaaa", fg: "#000000" },
+  "8FH": { bg: "#555555", fg: "#ffffff" },
+};
+const BIOS_ATTR_COLOR_KEYS = Object.keys(BIOS_ATTR_COLORS);
 
 // ==========================================
 // ELEMENTOS DEL DOM
@@ -494,31 +563,33 @@ function getLogicalCoords(e) {
 // EVENTOS
 // ==========================================
 function setupEventListeners() {
-  canvas.addEventListener("mousemove", handlePointerMove);
-  canvas.addEventListener("mousedown", handlePointerDown);
-  canvas.addEventListener("mouseup", handlePointerUp);
-  canvas.addEventListener("mouseleave", handlePointerLeave);
-  canvas.addEventListener(
-    "touchmove",
-    (e) => {
-      e.preventDefault();
-      handlePointerMove(e);
-    },
-    { passive: false },
-  );
-  canvas.addEventListener(
-    "touchstart",
-    (e) => {
-      e.preventDefault();
-      handlePointerDown(e);
-    },
-    { passive: false },
-  );
-  canvas.addEventListener("touchend", handlePointerUp);
+  if (canvas) {
+    canvas.addEventListener("mousemove", handlePointerMove);
+    canvas.addEventListener("mousedown", handlePointerDown);
+    canvas.addEventListener("mouseup", handlePointerUp);
+    canvas.addEventListener("mouseleave", handlePointerLeave);
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
+        handlePointerMove(e);
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        handlePointerDown(e);
+      },
+      { passive: false },
+    );
+    canvas.addEventListener("touchend", handlePointerUp);
+  }
 
-  btnToggleGrid.addEventListener("click", toggleGrid);
-  btnClear.addEventListener("click", clearCanvas);
-  btnExport.addEventListener("click", exportASM);
+  if (btnToggleGrid) btnToggleGrid.addEventListener("click", toggleGrid);
+  if (btnClear) btnClear.addEventListener("click", clearCanvas);
+  if (btnExport) btnExport.addEventListener("click", exportASM);
 
   const btnImportTrigger = document.getElementById("btn-import-trigger");
   const importFileInput = document.getElementById("import-file-input");
@@ -529,19 +600,1054 @@ function setupEventListeners() {
     importFileInput.addEventListener("change", handleImportZIP);
   }
 
-  btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
-  btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
-  btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
-  btnModeSelect.addEventListener("click", () => setDrawingMode("select"));
-  btnCreateTemplate.addEventListener("click", createTemplateFromCurrentDrawing);
+  if (btnModeRect)
+    btnModeRect.addEventListener("click", () => setDrawingMode("rect"));
+  if (btnModeSingle)
+    btnModeSingle.addEventListener("click", () => setDrawingMode("single"));
+  if (btnModeStamp)
+    btnModeStamp.addEventListener("click", () => setDrawingMode("stamp"));
+  if (btnModeSelect)
+    btnModeSelect.addEventListener("click", () => setDrawingMode("select"));
+  if (btnCreateTemplate)
+    btnCreateTemplate.addEventListener(
+      "click",
+      createTemplateFromCurrentDrawing,
+    );
 
-  btnAddFrame.addEventListener("click", () => {
-    addFrame(`Frame ${frames.length + 1}`);
-    switchToFrame(frames[frames.length - 1].id);
+  if (btnAddFrame) {
+    btnAddFrame.addEventListener("click", () => {
+      addFrame(`Frame ${frames.length + 1}`);
+      switchToFrame(frames[frames.length - 1].id);
+    });
+  }
+  if (btnCloneFrame) btnCloneFrame.addEventListener("click", cloneActiveFrame);
+  if (btnEditBackground)
+    btnEditBackground.addEventListener("click", switchToBackground);
+  if (btnToggleOnion) btnToggleOnion.addEventListener("click", toggleOnionSkin);
+
+  // Eventos Modo 2 Texto
+  setupTextModeEvents();
+
+  const btnExportTextASM = document.getElementById("btn-export-text-asm");
+  if (btnExportTextASM) {
+    btnExportTextASM.addEventListener("click", exportTextModeASM);
+  }
+
+  // Eventos de Importación de GIF
+  const btnImportGifTrigger = document.getElementById("btn-import-gif-trigger");
+  const gifFileInput = document.getElementById("gif-file-input");
+  if (btnImportGifTrigger && gifFileInput) {
+    btnImportGifTrigger.addEventListener("click", () => {
+      gifFileInput.click();
+    });
+    gifFileInput.addEventListener("change", handleImportGIFFile);
+  }
+
+  const btnCloseGifModal = document.getElementById("btn-close-gif-modal");
+  const btnCancelGifImport = document.getElementById("btn-cancel-gif-import");
+  const btnConfirmGifImport = document.getElementById("btn-confirm-gif-import");
+  const gifImportModal = document.getElementById("gif-import-modal");
+
+  if (btnCloseGifModal && gifImportModal) {
+    btnCloseGifModal.addEventListener("click", () => {
+      gifImportModal.classList.remove("active");
+    });
+  }
+  if (btnCancelGifImport && gifImportModal) {
+    btnCancelGifImport.addEventListener("click", () => {
+      gifImportModal.classList.remove("active");
+    });
+  }
+  if (btnConfirmGifImport) {
+    btnConfirmGifImport.addEventListener("click", processSelectedGIF);
+  }
+
+  const gifScalingSelect = document.getElementById("gif-scaling");
+  const gifScaleFactorField = document.getElementById("gif-scale-factor");
+  if (gifScalingSelect && gifScaleFactorField) {
+    const updateFactorState = () => {
+      gifScaleFactorField.disabled = gifScalingSelect.value !== "factor";
+    };
+    gifScalingSelect.addEventListener("change", updateFactorState);
+    updateFactorState();
+  }
+
+  const gifOffsetModeSelect = document.getElementById("gif-offset-mode");
+  const gifOffsetXField = document.getElementById("gif-offset-x");
+  const gifOffsetYField = document.getElementById("gif-offset-y");
+  if (gifOffsetModeSelect && gifOffsetXField && gifOffsetYField) {
+    const updateOffsetState = () => {
+      const isCustom = gifOffsetModeSelect.value === "custom";
+      gifOffsetXField.disabled = !isCustom;
+      gifOffsetYField.disabled = !isCustom;
+    };
+    gifOffsetModeSelect.addEventListener("change", updateOffsetState);
+    updateOffsetState();
+  }
+
+  const gifIgnoreColorModeSelect = document.getElementById("gif-ignore-color-mode");
+  const gifCustomIgnoreContainer = document.getElementById("gif-custom-ignore-container");
+  if (gifIgnoreColorModeSelect && gifCustomIgnoreContainer) {
+    const updateIgnoreColorState = () => {
+      gifCustomIgnoreContainer.style.display = gifIgnoreColorModeSelect.value === "custom" ? "block" : "none";
+    };
+    gifIgnoreColorModeSelect.addEventListener("change", updateIgnoreColorState);
+    updateIgnoreColorState();
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+// ==========================================
+// ESTADO Y LÓGICA DE LA PIZARRA MODO TEXTO (80x25)
+// ==========================================
+let textToolMode = "cuadro";
+
+let textBoardObjects = [
+  { id: 1, type: "cuadro", r1: 2, c1: 12, r2: 22, c2: 61, color: "00CH" },
+  { id: 2, type: "cuadro", r1: 5, c1: 30, r2: 5, c2: 41, color: "016H" },
+  {
+    id: 3,
+    type: "label",
+    row: 5,
+    col: 18,
+    text: "Boleto:",
+    varName: "lbl_boleto",
+    color: "71H",
+  },
+  {
+    id: 4,
+    type: "input",
+    row: 5,
+    col: 30,
+    maxLen: 2,
+    varName: "eboleto",
+    color: "016H",
+  },
+
+  { id: 5, type: "cuadro", r1: 10, c1: 30, r2: 10, c2: 45, color: "21H" },
+  {
+    id: 6,
+    type: "label",
+    row: 10,
+    col: 18,
+    text: "Destino:",
+    varName: "lbl_destino",
+    color: "71H",
+  },
+  {
+    id: 7,
+    type: "input",
+    row: 10,
+    col: 30,
+    maxLen: 16,
+    varName: "edestino",
+    color: "21H",
+  },
+
+  { id: 8, type: "cuadro", r1: 16, c1: 30, r2: 16, c2: 41, color: "21H" },
+  {
+    id: 9,
+    type: "label",
+    row: 16,
+    col: 18,
+    text: "Precio:",
+    varName: "lbl_precio",
+    color: "71H",
+  },
+  {
+    id: 10,
+    type: "input",
+    row: 16,
+    col: 30,
+    maxLen: 4,
+    varName: "eprecio",
+    color: "21H",
+  },
+];
+let textObjectIdCounter = 10;
+let activeSelectedTextObjId = null;
+
+let isDrawingTextRect = false;
+let textRectStart = null;
+
+let isDraggingTextObj = false;
+let textDragOffset = { r: 0, c: 0 };
+let isResizingTextObj = false;
+let textResizeHandle = null;
+
+const TEXT_RESIZE_GRIP_SIZE = 1;
+
+function setupTextModeEvents() {
+  const btnEnvVideo = document.getElementById("btn-env-video");
+  const btnEnvText = document.getElementById("btn-env-text");
+  if (btnEnvVideo && btnEnvText) {
+    btnEnvVideo.addEventListener("click", () => switchEnvironment("video"));
+    btnEnvText.addEventListener("click", () => switchEnvironment("text"));
+  }
+
+  const tools = {
+    cuadro: document.getElementById("btn-text-tool-cuadro"),
+    label: document.getElementById("btn-text-tool-label"),
+    input: document.getElementById("btn-text-tool-input"),
+    select: document.getElementById("btn-text-tool-select"),
+  };
+
+  Object.entries(tools).forEach(([mode, btn]) => {
+    if (btn) {
+      btn.addEventListener("click", () => setTextToolMode(mode));
+    }
   });
-  btnCloneFrame.addEventListener("click", cloneActiveFrame);
-  btnEditBackground.addEventListener("click", switchToBackground);
-  btnToggleOnion.addEventListener("click", toggleOnionSkin);
+
+  const consoleEl = document.getElementById("text-console");
+  if (consoleEl) {
+    consoleEl.addEventListener("mousemove", handleTextConsoleMouseMove);
+    consoleEl.addEventListener("mousedown", handleTextConsoleMouseDown);
+    consoleEl.addEventListener("mouseup", handleTextConsoleMouseUp);
+    consoleEl.addEventListener("contextmenu", handleTextConsoleContextMenu);
+  }
+
+  const ctxSave = document.getElementById("ctx-btn-save");
+  const ctxDel = document.getElementById("ctx-btn-delete");
+  if (ctxSave) ctxSave.addEventListener("click", saveContextMenuProps);
+  if (ctxDel) ctxDel.addEventListener("click", deleteContextMenuObj);
+
+  const ctxPalette = document.getElementById("ctx-color-palette");
+  const ctxInputText = document.getElementById("ctx-input-text");
+  const ctxInputRow = document.getElementById("ctx-input-row");
+  const ctxInputCol = document.getElementById("ctx-input-col");
+  const ctxInputMaxLen = document.getElementById("ctx-input-maxlen");
+
+  if (ctxPalette) {
+    ctxPalette.addEventListener("click", (event) => {
+      const swatch = event.target.closest("button[data-color]");
+      if (!swatch) return;
+      applyContextMenuColor(swatch.dataset.color);
+    });
+  }
+
+  if (ctxInputText) {
+    ctxInputText.addEventListener("input", applyContextMenuText);
+  }
+
+  if (ctxInputRow) {
+    ctxInputRow.addEventListener("input", applyContextMenuPosition);
+  }
+
+  if (ctxInputCol) {
+    ctxInputCol.addEventListener("input", applyContextMenuPosition);
+  }
+
+  if (ctxInputMaxLen) {
+    ctxInputMaxLen.addEventListener("input", applyContextMenuSize);
+  }
+
+  document.addEventListener("click", (e) => {
+    const ctxMenu = document.getElementById("text-context-menu");
+    if (ctxMenu && !ctxMenu.contains(e.target) && e.button !== 2) {
+      ctxMenu.style.display = "none";
+    }
+  });
+}
+
+function setTextToolMode(mode) {
+  textToolMode = mode;
+  const tools = {
+    cuadro: document.getElementById("btn-text-tool-cuadro"),
+    label: document.getElementById("btn-text-tool-label"),
+    input: document.getElementById("btn-text-tool-input"),
+    select: document.getElementById("btn-text-tool-select"),
+  };
+
+  Object.entries(tools).forEach(([m, btn]) => {
+    if (btn) {
+      btn.classList.remove("btn-primary", "active");
+      btn.classList.add("btn-secondary");
+    }
+  });
+
+  if (tools[mode]) {
+    tools[mode].classList.remove("btn-secondary");
+    tools[mode].classList.add("btn-primary", "active");
+  }
+
+  const consoleEl = document.getElementById("text-console");
+  if (consoleEl) {
+    consoleEl.style.cursor = mode === "select" ? "default" : "crosshair";
+  }
+}
+
+function getConsoleCoords(e) {
+  const consoleEl = document.getElementById("text-console");
+  const rect = consoleEl.getBoundingClientRect();
+  const colWidth = rect.width / 80;
+  const rowHeight = rect.height / 25;
+  let col = Math.floor((e.clientX - rect.left) / colWidth);
+  let row = Math.floor((e.clientY - rect.top) / rowHeight);
+  return {
+    row: Math.max(0, Math.min(24, row)),
+    col: Math.max(0, Math.min(79, col)),
+  };
+}
+
+function getTextObjectAtCoords(row, col) {
+  for (let i = textBoardObjects.length - 1; i >= 0; i--) {
+    const obj = textBoardObjects[i];
+    if (obj.type === "cuadro") {
+      const minR = Math.min(obj.r1, obj.r2),
+        maxR = Math.max(obj.r1, obj.r2);
+      const minC = Math.min(obj.c1, obj.c2),
+        maxC = Math.max(obj.c1, obj.c2);
+      if (row >= minR && row <= maxR && col >= minC && col <= maxC) return obj;
+    } else if (obj.type === "label") {
+      if (
+        row === obj.row &&
+        col >= obj.col &&
+        col < obj.col + (obj.text || "").length
+      )
+        return obj;
+    } else if (obj.type === "input") {
+      if (
+        row === obj.row &&
+        col >= obj.col &&
+        col < obj.col + (obj.maxLen || 5)
+      )
+        return obj;
+    }
+  }
+  return null;
+}
+
+function getCuadroBounds(obj) {
+  return {
+    minR: Math.min(obj.r1, obj.r2),
+    maxR: Math.max(obj.r1, obj.r2),
+    minC: Math.min(obj.c1, obj.c2),
+    maxC: Math.max(obj.c1, obj.c2),
+  };
+}
+
+function getResizeHandleAtCoords(obj, row, col) {
+  if (!obj || obj.type !== "cuadro") return null;
+  const { minR, maxR, minC, maxC } = getCuadroBounds(obj);
+  const near = (a, b) => Math.abs(a - b) <= TEXT_RESIZE_GRIP_SIZE;
+
+  if (near(row, minR) && near(col, minC)) return "nw";
+  if (near(row, minR) && near(col, maxC)) return "ne";
+  if (near(row, maxR) && near(col, minC)) return "sw";
+  if (near(row, maxR) && near(col, maxC)) return "se";
+  return null;
+}
+
+function clampTextCoords(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function applyResizeToCuadro(obj, handle, row, col) {
+  const minSize = 0;
+  if (!obj || obj.type !== "cuadro" || !handle) return;
+
+  if (handle === "nw") {
+    obj.r1 = clampTextCoords(row, 0, obj.r2 - minSize);
+    obj.c1 = clampTextCoords(col, 0, obj.c2 - minSize);
+  } else if (handle === "ne") {
+    obj.r1 = clampTextCoords(row, 0, obj.r2 - minSize);
+    obj.c2 = clampTextCoords(col, obj.c1 + minSize, 79);
+  } else if (handle === "sw") {
+    obj.r2 = clampTextCoords(row, obj.r1 + minSize, 24);
+    obj.c1 = clampTextCoords(col, 0, obj.c2 - minSize);
+  } else if (handle === "se") {
+    obj.r2 = clampTextCoords(row, obj.r1 + minSize, 24);
+    obj.c2 = clampTextCoords(col, obj.c1 + minSize, 79);
+  }
+}
+
+function handleTextConsoleMouseMove(e) {
+  const coords = getConsoleCoords(e);
+  const hoverEl = document.getElementById("text-coords-hover");
+  if (hoverEl) hoverEl.textContent = `Col: ${coords.col}  Row: ${coords.row}`;
+
+  const hoveredObj = getTextObjectAtCoords(coords.row, coords.col);
+  const hoveredHandle = hoveredObj
+    ? getResizeHandleAtCoords(hoveredObj, coords.row, coords.col)
+    : null;
+
+  if (!isDraggingTextObj && !isResizingTextObj) {
+    const consoleEl = document.getElementById("text-console");
+    if (consoleEl) {
+      if (hoveredHandle === "nw" || hoveredHandle === "se") {
+        consoleEl.style.cursor = "nwse-resize";
+      } else if (hoveredHandle === "ne" || hoveredHandle === "sw") {
+        consoleEl.style.cursor = "nesw-resize";
+      } else if (hoveredObj) {
+        consoleEl.style.cursor =
+          textToolMode === "select" ? "move" : "crosshair";
+      } else {
+        consoleEl.style.cursor =
+          textToolMode === "select" ? "default" : "crosshair";
+      }
+    }
+  }
+
+  if (isResizingTextObj && activeSelectedTextObjId !== null) {
+    const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+    if (obj) {
+      applyResizeToCuadro(obj, textResizeHandle, coords.row, coords.col);
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (isDraggingTextObj && activeSelectedTextObjId !== null) {
+    const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+    if (obj) {
+      if (obj.type === "cuadro") {
+        const width = Math.abs(obj.c2 - obj.c1),
+          height = Math.abs(obj.r2 - obj.r1);
+        const newR1 = Math.max(
+          0,
+          Math.min(24 - height, coords.row - textDragOffset.r),
+        );
+        const newC1 = Math.max(
+          0,
+          Math.min(79 - width, coords.col - textDragOffset.c),
+        );
+        obj.r1 = newR1;
+        obj.c1 = newC1;
+        obj.r2 = newR1 + height;
+        obj.c2 = newC1 + width;
+      } else {
+        obj.row = Math.max(0, Math.min(24, coords.row - textDragOffset.r));
+        obj.col = Math.max(0, Math.min(79, coords.col - textDragOffset.c));
+      }
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  }
+}
+
+function handleTextConsoleMouseDown(e) {
+  if (e.button === 2) return;
+  const coords = getConsoleCoords(e);
+  const hitObj = getTextObjectAtCoords(coords.row, coords.col);
+
+  if (hitObj && (textToolMode === "select" || e.shiftKey)) {
+    activeSelectedTextObjId = hitObj.id;
+    const resizeHandle = getResizeHandleAtCoords(
+      hitObj,
+      coords.row,
+      coords.col,
+    );
+    isResizingTextObj = hitObj.type === "cuadro" && resizeHandle !== null;
+    isDraggingTextObj = !isResizingTextObj;
+    textResizeHandle = isResizingTextObj ? resizeHandle : null;
+
+    textDragOffset = {
+      r: coords.row - (hitObj.type === "cuadro" ? hitObj.r1 : hitObj.row),
+      c: coords.col - (hitObj.type === "cuadro" ? hitObj.c1 : hitObj.col),
+    };
+    renderTextModeConsole();
+    updateTextFieldsUI();
+    return;
+  }
+
+  if (textToolMode === "cuadro") {
+    if (!isDrawingTextRect) {
+      isDrawingTextRect = true;
+      textRectStart = coords;
+    } else {
+      isDrawingTextRect = false;
+      const newCuadro = {
+        id: ++textObjectIdCounter,
+        type: "cuadro",
+        r1: textRectStart.row,
+        c1: textRectStart.col,
+        r2: coords.row,
+        c2: coords.col,
+        color: "016H",
+      };
+      textBoardObjects.push(newCuadro);
+      activeSelectedTextObjId = newCuadro.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (textToolMode === "label") {
+    const textVal = prompt("Texto:", "Texto:");
+    if (textVal !== null) {
+      const newLabel = {
+        id: ++textObjectIdCounter,
+        type: "label",
+        row: coords.row,
+        col: coords.col,
+        text: textVal,
+        varName: `lbl_${textObjectIdCounter}`,
+        color: "71H",
+      };
+      textBoardObjects.push(newLabel);
+      activeSelectedTextObjId = newLabel.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    }
+  } else if (textToolMode === "input") {
+    const maxLenVal = parseInt(prompt("Máx caracteres:", "10"), 10) || 10;
+    const newInput = {
+      id: ++textObjectIdCounter,
+      type: "input",
+      row: coords.row,
+      col: coords.col,
+      maxLen: maxLenVal,
+      varName: `e_campo${textObjectIdCounter}`,
+      color: "21H",
+    };
+    textBoardObjects.push(newInput);
+    activeSelectedTextObjId = newInput.id;
+    renderTextModeConsole();
+    updateTextFieldsUI();
+  }
+}
+
+function handleTextConsoleMouseUp() {
+  isDraggingTextObj = false;
+  isResizingTextObj = false;
+  textResizeHandle = null;
+}
+
+function handleTextConsoleContextMenu(e) {
+  e.preventDefault();
+  const coords = getConsoleCoords(e);
+  const obj = getTextObjectAtCoords(coords.row, coords.col);
+  const ctxMenu = document.getElementById("text-context-menu");
+  if (!obj || !ctxMenu) {
+    if (ctxMenu) ctxMenu.style.display = "none";
+    return;
+  }
+  activeSelectedTextObjId = obj.id;
+  renderTextModeConsole();
+  syncTextContextMenuUI(obj);
+  ctxMenu.style.display = "block";
+  ctxMenu.style.left = `${Math.min(window.innerWidth - 240, e.clientX + 10)}px`;
+  ctxMenu.style.top = `${Math.min(window.innerHeight - 250, e.clientY + 10)}px`;
+}
+
+function saveContextMenuProps() {
+  document.getElementById("text-context-menu").style.display = "none";
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function syncTextContextMenuUI(obj) {
+  const ctxTitle = document.getElementById("ctx-title");
+  const fieldText = document.getElementById("ctx-field-text");
+  const fieldPos = document.getElementById("ctx-field-pos");
+  const fieldMaxLen = document.getElementById("ctx-field-maxlen");
+  const fieldColor = document.getElementById("ctx-field-color");
+  const currentText = document.getElementById("ctx-current-text");
+  const inputText = document.getElementById("ctx-input-text");
+  const inputRow = document.getElementById("ctx-input-row");
+  const inputCol = document.getElementById("ctx-input-col");
+  const inputMaxLen = document.getElementById("ctx-input-maxlen");
+
+  if (ctxTitle)
+    ctxTitle.textContent = `Propiedades (${obj.type.toUpperCase()})`;
+  if (fieldText)
+    fieldText.style.display = obj.type === "label" ? "block" : "none";
+  if (fieldPos)
+    fieldPos.style.display =
+      obj.type === "label" || obj.type === "input" ? "block" : "none";
+  if (fieldMaxLen)
+    fieldMaxLen.style.display = obj.type === "input" ? "block" : "none";
+  if (fieldColor) fieldColor.style.display = "block";
+
+  if (currentText) currentText.textContent = `Actual: ${obj.text || "(vacío)"}`;
+  if (inputText) inputText.value = obj.text || "";
+  if (inputRow) inputRow.value = typeof obj.row === "number" ? obj.row : 0;
+  if (inputCol) inputCol.value = typeof obj.col === "number" ? obj.col : 0;
+  if (inputMaxLen) inputMaxLen.value = obj.maxLen || 5;
+
+  renderContextColorPalette(obj.color || "71H");
+
+  setTimeout(() => {
+    if (obj.type === "label" && inputText) inputText.focus();
+    if (obj.type === "input" && inputMaxLen) inputMaxLen.focus();
+  }, 0);
+}
+
+function renderContextColorPalette(activeColor) {
+  const palette = document.getElementById("ctx-color-palette");
+  if (!palette) return;
+
+  palette.innerHTML = "";
+  BIOS_ATTR_COLOR_KEYS.forEach((colorKey) => {
+    const color = BIOS_ATTR_COLORS[colorKey];
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className =
+      "ctx-color-swatch" + (colorKey === activeColor ? " active" : "");
+    swatch.dataset.color = colorKey;
+    swatch.title = colorKey;
+    swatch.style.background = `linear-gradient(180deg, ${color.bg}, ${color.fg})`;
+    palette.appendChild(swatch);
+  });
+}
+
+function applyContextMenuText() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  const inputText = document.getElementById("ctx-input-text");
+  if (!obj || !inputText) return;
+
+  if (obj.type === "label") {
+    obj.text = inputText.value || "";
+    const currentText = document.getElementById("ctx-current-text");
+    if (currentText)
+      currentText.textContent = `Actual: ${obj.text || "(vacío)"}`;
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuPosition() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  const inputRow = document.getElementById("ctx-input-row");
+  const inputCol = document.getElementById("ctx-input-col");
+  if (!obj || !inputRow || !inputCol) return;
+
+  const nextRow = parseInt(inputRow.value, 10);
+  const nextCol = parseInt(inputCol.value, 10);
+  if (!Number.isNaN(nextRow)) {
+    obj.row = clampTextCoords(nextRow, 0, 24);
+  }
+  if (!Number.isNaN(nextCol)) {
+    obj.col = clampTextCoords(nextCol, 0, 79);
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuSize() {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  const inputMaxLen = document.getElementById("ctx-input-maxlen");
+  if (!obj || !inputMaxLen) return;
+
+  if (obj.type === "input") {
+    const nextValue = parseInt(inputMaxLen.value, 10);
+    obj.maxLen =
+      Number.isFinite(nextValue) && nextValue > 0 ? nextValue : obj.maxLen;
+  }
+
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function applyContextMenuColor(colorKey) {
+  if (activeSelectedTextObjId === null) return;
+  const obj = textBoardObjects.find((o) => o.id === activeSelectedTextObjId);
+  if (!obj || !colorKey) return;
+
+  obj.color = colorKey;
+  renderContextColorPalette(colorKey);
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function deleteContextMenuObj() {
+  if (activeSelectedTextObjId === null) return;
+  textBoardObjects = textBoardObjects.filter(
+    (o) => o.id !== activeSelectedTextObjId,
+  );
+  activeSelectedTextObjId = null;
+  document.getElementById("text-context-menu").style.display = "none";
+  renderTextModeConsole();
+  updateTextFieldsUI();
+}
+
+function switchEnvironment(env) {
+  currentEnvironment = env;
+  const btnEnvVideo = document.getElementById("btn-env-video");
+  const btnEnvText = document.getElementById("btn-env-text");
+  const videoLayout = document.getElementById("video-mode-container");
+  const textLayout = document.getElementById("text-mode-container");
+
+  if (env === "text") {
+    if (btnEnvVideo) {
+      btnEnvVideo.classList.remove("btn-primary", "active");
+      btnEnvVideo.classList.add("btn-secondary");
+    }
+    if (btnEnvText) {
+      btnEnvText.classList.remove("btn-secondary");
+      btnEnvText.classList.add("btn-primary", "active");
+    }
+
+    if (videoLayout) videoLayout.style.display = "none";
+    if (textLayout) textLayout.style.display = "grid";
+    renderTextModeConsole();
+  } else {
+    if (btnEnvText) {
+      btnEnvText.classList.remove("btn-primary", "active");
+      btnEnvText.classList.add("btn-secondary");
+    }
+    if (btnEnvVideo) {
+      btnEnvVideo.classList.remove("btn-secondary");
+      btnEnvVideo.classList.add("btn-primary", "active");
+    }
+
+    if (textLayout) textLayout.style.display = "none";
+    if (videoLayout) videoLayout.style.display = "grid";
+    draw();
+  }
+}
+
+function renderTextModeConsole() {
+  const consoleEl = document.getElementById("text-console");
+  if (!consoleEl) return;
+
+  const grid = Array.from({ length: 25 }, () =>
+    Array(80).fill({ char: " ", bg: "#c0c0c0", fg: "#0000aa" }),
+  );
+
+  textBoardObjects.forEach((obj) => {
+    const isSelected = obj.id === activeSelectedTextObjId;
+    const cColor = BIOS_ATTR_COLORS[obj.color] || { bg: "#000", fg: "#f00" };
+
+    if (obj.type === "cuadro") {
+      const minR = Math.min(obj.r1, obj.r2),
+        maxR = Math.max(obj.r1, obj.r2);
+      const minC = Math.min(obj.c1, obj.c2),
+        maxC = Math.max(obj.c1, obj.c2);
+      for (let r = minR; r <= maxR; r++) {
+        for (let c = minC; c <= maxC; c++) {
+          if (r < 25 && c < 80) {
+            grid[r][c] = {
+              char: " ",
+              bg: cColor.bg,
+              fg: cColor.fg,
+            };
+          }
+        }
+      }
+
+      if (isSelected) {
+        for (let c = minC; c <= maxC; c++) {
+          if (minR < 25 && c < 80) {
+            grid[minR][c] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+          if (maxR < 25 && c < 80) {
+            grid[maxR][c] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+        }
+        for (let r = minR; r <= maxR; r++) {
+          if (r < 25 && minC < 80) {
+            grid[r][minC] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+          if (r < 25 && maxC < 80) {
+            grid[r][maxC] = { char: " ", bg: "#a855f7", fg: "#ffffff" };
+          }
+        }
+        const corners = [
+          [minR, minC],
+          [minR, maxC],
+          [maxR, minC],
+          [maxR, maxC],
+        ];
+        corners.forEach(([r, c]) => {
+          if (r < 25 && c < 80) {
+            grid[r][c] = { char: "■", bg: "#a855f7", fg: "#ffffff" };
+          }
+        });
+      }
+    } else if (obj.type === "label") {
+      const txt = obj.text || "";
+      const attr = obj.color || "71H";
+      let cursorCol = obj.col;
+      for (let i = 0; i < txt.length; i++) {
+        if (obj.row < 25 && obj.col + i < 80) {
+          grid[obj.row][obj.col + i] = {
+            char: txt[i],
+            bg: isSelected ? "#a855f7" : cColor.bg,
+            fg: isSelected ? "#fff" : cColor.fg,
+          };
+          cursorCol = obj.col + i;
+        }
+      }
+    } else if (obj.type === "input") {
+      const attr = obj.color || "21H";
+      for (let i = 0; i < (obj.maxLen || 5); i++) {
+        if (obj.row < 25 && obj.col + i < 80) {
+          grid[obj.row][obj.col + i] = {
+            char: "_",
+            bg: isSelected ? "#a855f7" : cColor.bg,
+            fg: isSelected ? "#fff" : cColor.fg,
+          };
+        }
+      }
+    }
+  });
+
+  let html = "";
+  for (let r = 0; r < 25; r++) {
+    for (let c = 0; c < 80; c++) {
+      const cell = grid[r][c];
+      const char = cell.char === " " ? "&nbsp;" : cell.char;
+      html += `<span style="background:${cell.bg};color:${cell.fg}">${char}</span>`;
+    }
+    html += "\n";
+  }
+  consoleEl.innerHTML = html;
+}
+
+function updateTextFieldsUI() {
+  const listEl = document.getElementById("text-fields-list");
+  const countEl = document.getElementById("text-fields-count");
+  if (!listEl) return;
+
+  listEl.innerHTML = "";
+  if (countEl) countEl.textContent = `${textBoardObjects.length} Objetos`;
+
+  if (textBoardObjects.length === 0) {
+    listEl.innerHTML = `<li class="empty-state">La pizarra de texto está vacía. Usas los botones superiores para colocar cuadros o textos.</li>`;
+    return;
+  }
+
+  textBoardObjects.forEach((obj, idx) => {
+    const item = document.createElement("li");
+    item.className =
+      "history-item" +
+      (obj.id === activeSelectedTextObjId ? " sprite-selected" : "");
+    item.style.cssText =
+      "display:flex;justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:4px;border-radius:6px;cursor:pointer;";
+    item.addEventListener("click", () => {
+      activeSelectedTextObjId = obj.id;
+      renderTextModeConsole();
+      updateTextFieldsUI();
+    });
+
+    const info = document.createElement("div");
+    let icon =
+      obj.type === "cuadro"
+        ? "🔲 Cuadro"
+        : obj.type === "label"
+          ? "🔤 Texto"
+          : "📥 Entrada";
+    let detailStr = "";
+    if (obj.type === "cuadro")
+      detailStr = `[${obj.r1},${obj.c1}] → [${obj.r2},${obj.c2}] (${obj.color})`;
+    else if (obj.type === "label")
+      detailStr = `"${obj.text}" en (${obj.row},${obj.col})`;
+    else
+      detailStr = `${obj.varName} max:${obj.maxLen} en (${obj.row},${obj.col})`;
+
+    info.innerHTML = `<strong style="color:#a5b4fc">${icon} #${idx + 1}</strong><br><small style="color:#94a3b8;">${detailStr}</small>`;
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn-delete-item";
+    delBtn.innerHTML = "🗑️";
+    delBtn.title = "Eliminar objeto";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      textBoardObjects = textBoardObjects.filter((o) => o.id !== obj.id);
+      if (activeSelectedTextObjId === obj.id) activeSelectedTextObjId = null;
+      updateTextFieldsUI();
+      renderTextModeConsole();
+    });
+
+    item.appendChild(info);
+    item.appendChild(delBtn);
+    listEl.appendChild(item);
+  });
+}
+
+function generateMode2ASM() {
+  let macros = [];
+  let dataLines = [];
+  let codeExecutions = [];
+
+  const escapeAsmText = (value) =>
+    String(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '""')
+      .replace(/\r?\n/g, " ");
+
+  textBoardObjects.forEach((obj, idx) => {
+    if (obj.type === "cuadro") {
+      const minRow = Math.min(obj.r1, obj.r2);
+      const minCol = Math.min(obj.c1, obj.c2);
+      const maxRow = Math.max(obj.r1, obj.r2);
+      const maxCol = Math.max(obj.c1, obj.c2);
+      const cxHex =
+        (((minRow & 0xff) << 8) | (minCol & 0xff))
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase() + "H";
+      const dxHex =
+        (((maxRow & 0xff) << 8) | (maxCol & 0xff))
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase() + "H";
+
+      const macroName = `cuadro_${idx + 1}`;
+      macros.push(
+        `${macroName} MACRO\n` +
+          `MOV AX, 0600H\n` +
+          `MOV BH, ${obj.color || "71H"}\n` +
+          `MOV CX, ${cxHex}\n` +
+          `MOV DX, ${dxHex}\n` +
+          `INT 10H\n` +
+          `ENDM\n`,
+      );
+      codeExecutions.push(macroName);
+    } else if (obj.type === "label") {
+      const varName = obj.varName || `lbl_${idx + 1}`;
+      const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colorAttr = obj.color || "71H";
+
+      macros.push(
+        `text_${varName} MACRO\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `LEA SI, ${varName}\n` +
+          `MOV BL, ${colorAttr}\n` +
+          `text_${varName}_loop:\n` +
+          `LODSB\n` +
+          `CMP AL, '$'\n` +
+          `JE text_${varName}_end\n` +
+          `MOV AH, 09H\n` +
+          `MOV BH, 00\n` +
+          `MOV CX, 1\n` +
+          `INT 10H\n` +
+          `JMP text_${varName}_loop\n` +
+          `text_${varName}_end:\n` +
+          `ENDM\n`,
+      );
+
+      dataLines.push(`${varName} DB "${escapeAsmText(obj.text || "")}", '$'`);
+      codeExecutions.push(`text_${varName}`);
+    } else if (obj.type === "input") {
+      const varName = obj.varName || `e_input${idx + 1}`;
+      const rowHex = obj.row.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const colHex = obj.col.toString(16).padStart(2, "0").toUpperCase() + "H";
+      const reservLen = (obj.maxLen || 5) + 4;
+      const colorAttr = obj.color || "21H";
+
+      macros.push(
+        `entrada_${varName} MACRO\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `MOV AH, 09H\n` +
+          `MOV AL, ' '\n` +
+          `MOV BH, 00\n` +
+          `MOV BL, ${colorAttr}\n` +
+          `MOV CX, ${obj.maxLen || 5}\n` +
+          `INT 10H\n` +
+          `MOV AH, 02H\n` +
+          `MOV BH, 00\n` +
+          `MOV DH, ${rowHex}\n` +
+          `MOV DL, ${colHex}\n` +
+          `INT 10H\n` +
+          `MOV AH, 0AH\n` +
+          `LEA DX, e${varName}\n` +
+          `INT 21H\n` +
+          `ENDM\n`,
+      );
+
+      macros.push(
+        `ee_${varName} MACRO\n` +
+          `e${varName} LABEL BYTE\n` +
+          `MAX_${varName} DB ${obj.maxLen || 5}\n` +
+          `ACTUAL_${varName} DB ?\n` +
+          `RESER_${varName} DB ${reservLen} DUP (' ')\n` +
+          `ENDM\n`,
+      );
+
+      codeExecutions.push(`entrada_${varName}`);
+      codeExecutions.push(`ee_${varName}`);
+    }
+  });
+
+  return [
+    "; ==========================================",
+    "; PROYECTO MODO TEXTO BIOS 80x25 - mt1.asm",
+    "; ==========================================",
+    "",
+    macros.join("\n"),
+    ".MODEL SMALL",
+    ".STACK 64",
+    ".DATA",
+    "",
+    dataLines.length > 0 ? dataLines.join("\n") : "; (sin variables de texto)",
+    "",
+    ".CODE",
+    "PRIN PROC FAR",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "",
+    codeExecutions.length > 0
+      ? codeExecutions.join("\n")
+      : "    ; (pizarra vacía)",
+    "",
+    "; Finalización limpia del programa en modo texto",
+    "MOV AX, 4C00H",
+    "INT 21H",
+    "",
+    "PRIN ENDP",
+    "END PRIN",
+    "",
+  ].join("\n");
+}
+
+function generateTextoBAT() {
+  return (
+    [
+      "@echo off",
+      "echo Compilando mt1.asm...",
+      "tasm mt1.asm",
+      "if errorlevel 1 goto error",
+      "",
+      "echo Enlazando mt1.exe...",
+      "tlink mt1.obj",
+      "if errorlevel 1 goto error",
+      "",
+      "echo Ejecutando mt1...",
+      "mt1",
+      "goto end",
+      "",
+      ":error",
+      "echo Error al compilar o enlazar mt1.asm.",
+      "",
+      ":end",
+    ].join("\r\n") + "\r\n"
+  );
+}
+
+async function exportTextModeASM() {
+  const asmContent = generateMode2ASM();
+  const batContent = generateTextoBAT();
+
+  if (typeof JSZip !== "undefined") {
+    const zip = new JSZip();
+    zip.file("mt1.asm", asmContent);
+    zip.file("texto.bat", batContent);
+    const blob = await zip.generateAsync({ type: "blob" });
+    downloadBlob(blob, `modo_texto_asm_${Date.now()}.zip`);
+  } else {
+    downloadBlob(
+      new Blob([asmContent], { type: "text/plain;charset=utf-8" }),
+      "mt1.asm",
+    );
+    downloadBlob(
+      new Blob([batContent], { type: "text/plain;charset=utf-8" }),
+      "texto.bat",
+    );
+  }
 }
 
 // ==========================================
@@ -567,7 +1673,7 @@ function setDrawingMode(mode) {
     stamp: btnModeStamp,
     select: btnModeSelect,
   };
-  
+
   if (targets[mode]) {
     targets[mode].classList.remove("btn-secondary");
     targets[mode].classList.add("btn-primary", "active");
@@ -590,7 +1696,7 @@ function handlePointerMove(e) {
   if (isDraggingSprite && activeSelectedSpriteId !== null) {
     const layer = getActiveEditingLayer();
     if (layer && layer.sprites) {
-      const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+      const sprite = layer.sprites.find((s) => s.id === activeSelectedSpriteId);
       if (sprite) {
         sprite.x = clamp(coords.x - dragOffset.x, 0, canvas.width - 1);
         sprite.y = clamp(coords.y - dragOffset.y, 0, canvas.height - 1);
@@ -632,7 +1738,7 @@ function handlePointerMove(e) {
     const fi = visibleIndices[i];
     const frame = frames[fi];
     if (!frame || !frame.visible) continue;
-    
+
     // Primero buscar sprites
     const frameSprite = getSpriteAtCoords(frame, coords);
     if (frameSprite) {
@@ -642,7 +1748,7 @@ function handlePointerMove(e) {
       };
       break;
     }
-    
+
     const found = frame.rectangles.find((r) => isPointInRect(coords, r));
     if (found) {
       const [r, g, b] = VGA_PALETTE[found.colorIndex];
@@ -659,7 +1765,9 @@ function handlePointerMove(e) {
 
   // Cambiar cursor a "move" si estamos sobre un sprite de la capa activa
   const activeLayer = getActiveEditingLayer();
-  const spriteUnderCursor = activeLayer ? getSpriteAtCoords(activeLayer, coords) : null;
+  const spriteUnderCursor = activeLayer
+    ? getSpriteAtCoords(activeLayer, coords)
+    : null;
   canvas.style.cursor = spriteUnderCursor ? "move" : "crosshair";
 
   hoverCoordsEl.textContent = `X:${coords.x}  Y:${coords.y}${hoveredInfo ? "  |  " + hoveredInfo.label : ""}`;
@@ -721,7 +1829,7 @@ function getVisibleFrameIndices() {
 }
 
 function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
-  sprite.rects.forEach(rect => {
+  sprite.rects.forEach((rect) => {
     let fillColor;
     if (mixBlue) {
       const [r, g, b] = VGA_PALETTE[rect.colorIndex];
@@ -735,21 +1843,26 @@ function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
     }
     ctx.fillStyle = fillColor;
     ctx.globalAlpha = opacity;
-    
+
     const x1 = clamp(rect.x1 + sprite.x, 0, canvas.width - 1);
     const y1 = clamp(rect.y1 + sprite.y, 0, canvas.height - 1);
     const x2 = clamp(rect.x2 + sprite.x, 0, canvas.width - 1);
     const y2 = clamp(rect.y2 + sprite.y, 0, canvas.height - 1);
-    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+    const minX = Math.min(x1, x2),
+      maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2),
+      maxY = Math.max(y1, y2);
     ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
   });
-  
+
   ctx.globalAlpha = 1.0;
   // Resaltado de selección si es la capa que se está editando
   if (isLayerEditable && activeSelectedSpriteId === sprite.id) {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    sprite.rects.forEach(r => {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    sprite.rects.forEach((r) => {
       const x1 = r.x1 + sprite.x;
       const x2 = r.x2 + sprite.x;
       const y1 = r.y1 + sprite.y;
@@ -771,17 +1884,23 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const currentFrameIndex = editingBackground
-    ? (frames.length > 0 ? frames.length - 1 : -1)
+    ? frames.length > 0
+      ? frames.length - 1
+      : -1
     : frames.findIndex((f) => f.id === activeFrameId);
 
   // 1. Fondo siempre al 100%
   if (backgroundLayer.visible) {
     ctx.globalAlpha = 1.0;
-    backgroundLayer.rectangles.forEach((rect) => drawRect(rect));
-    if (backgroundLayer.sprites) {
-      backgroundLayer.sprites.forEach((sprite) => {
-        drawSprite(sprite, 1.0, null, editingBackground);
-      });
+    if (backgroundLayer.bitmap) {
+      drawBitmap(backgroundLayer.bitmap, 1.0);
+    } else {
+      backgroundLayer.rectangles.forEach((rect) => drawRect(rect));
+      if (backgroundLayer.sprites) {
+        backgroundLayer.sprites.forEach((sprite) => {
+          drawSprite(sprite, 1.0, null, editingBackground);
+        });
+      }
     }
   }
 
@@ -796,18 +1915,26 @@ function draw() {
 
     if (isCurrentFrame) {
       ctx.globalAlpha = 1.0;
-      frame.rectangles.forEach((rect) => drawRect(rect));
-      if (frame.sprites) {
-        frame.sprites.forEach((sprite) => {
-          drawSprite(sprite, 1.0, null, isEditable);
-        });
+      if (frame.bitmap) {
+        drawBitmap(frame.bitmap, 1.0);
+      } else {
+        frame.rectangles.forEach((rect) => drawRect(rect));
+        if (frame.sprites) {
+          frame.sprites.forEach((sprite) => {
+            drawSprite(sprite, 1.0, null, isEditable);
+          });
+        }
       }
     } else {
       const opacitySteps = [0.35, 0.2, 0.1, 0.05];
-      const opacity = opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
+      const opacity =
+        opacitySteps[Math.min(distance - 1, opacitySteps.length - 1)];
       const mixBlue = Math.min(0.5, distance * 0.2);
 
-      frame.rectangles.forEach((rect) => {
+      if (frame.bitmap) {
+        drawBitmap(frame.bitmap, opacity, mixBlue);
+      } else {
+        frame.rectangles.forEach((rect) => {
         // Tinte azul para onion skin
         const [r, g, b] = VGA_PALETTE[rect.colorIndex];
         const nr = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
@@ -827,6 +1954,7 @@ function draw() {
           drawSprite(sprite, opacity, mixBlue, false);
         });
       }
+      }
     }
   });
 
@@ -841,6 +1969,34 @@ function drawRect(rect) {
   const minY = Math.min(rect.y1, rect.y2),
     maxY = Math.max(rect.y1, rect.y2);
   ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+}
+
+function drawBitmap(bitmap, opacity = 1, mixBlue = null) {
+  if (!bitmap || bitmap.length !== CANVAS_WIDTH * CANVAS_HEIGHT) return;
+
+  const imageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
+  const pixels = imageData.data;
+
+  for (let i = 0; i < CANVAS_WIDTH * CANVAS_HEIGHT; i++) {
+    const colorIndex = bitmap[i];
+    if (colorIndex === BITMAP_SKIP_INDEX) continue;
+
+    let [r, g, b] = VGA_PALETTE[colorIndex] || [0, 0, 0];
+    if (mixBlue !== null) {
+      r = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
+      g = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
+      b = Math.round(b * (1 - mixBlue) + 200 * mixBlue);
+    }
+
+    const offset = i * 4;
+    pixels[offset] = r;
+    pixels[offset + 1] = g;
+    pixels[offset + 2] = b;
+    pixels[offset + 3] = 255;
+  }
+
+  ctx.globalAlpha = opacity;
+  ctx.putImageData(imageData, 0, 0);
 }
 
 function drawPreview() {
@@ -927,8 +2083,11 @@ function getSpriteAtCoords(layer, coords) {
   // Buscar del último al primero (el de arriba primero)
   for (let i = layer.sprites.length - 1; i >= 0; i--) {
     const s = layer.sprites[i];
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    s.rects.forEach(r => {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    s.rects.forEach((r) => {
       const x1 = r.x1 + s.x;
       const x2 = r.x2 + s.x;
       const y1 = r.y1 + s.y;
@@ -938,7 +2097,12 @@ function getSpriteAtCoords(layer, coords) {
       minY = Math.min(minY, y1, y2);
       maxY = Math.max(maxY, y1, y2);
     });
-    if (coords.x >= minX && coords.x <= maxX && coords.y >= minY && coords.y <= maxY) {
+    if (
+      coords.x >= minX &&
+      coords.x <= maxX &&
+      coords.y >= minY &&
+      coords.y <= maxY
+    ) {
       return s;
     }
   }
@@ -991,7 +2155,7 @@ function handlePointerDown(e) {
     }
     const tmpl = templates.find((t) => t.id === selectedTemplateId);
     if (!tmpl) return;
-    
+
     const newSprite = {
       id: ++spriteIdCounter,
       name: tmpl.name,
@@ -999,13 +2163,13 @@ function handlePointerDown(e) {
       y: coords.y,
       width: tmpl.width,
       height: tmpl.height,
-      rects: tmpl.rects.map(r => ({ ...r }))
+      rects: tmpl.rects.map((r) => ({ ...r })),
     };
-    
+
     if (!layer.sprites) layer.sprites = [];
     layer.sprites.push(newSprite);
-    
-    tmpl.rects.forEach(r => {
+
+    tmpl.rects.forEach((r) => {
       const tipo = getTipoInstruccion(r) || "DRAW_REGION";
       agregarInstruccion(tipo);
     });
@@ -1059,7 +2223,6 @@ function handlePointerDown(e) {
   }
 }
 
-
 // ==========================================
 // OPTIMIZACIÓN
 // ==========================================
@@ -1082,16 +2245,125 @@ function optimizeRectangles(layer) {
   }
 }
 
+function normalizeExportRect(rect) {
+  const x1 = Math.min(rect.x1, rect.x2);
+  const y1 = Math.min(rect.y1, rect.y2);
+  const x2 = Math.max(rect.x1, rect.x2);
+  const y2 = Math.max(rect.y1, rect.y2);
+  return {
+    ...rect,
+    x1,
+    y1,
+    x2,
+    y2,
+    type: x1 === x2 && y1 === y2 ? "pixel" : "rect",
+  };
+}
+
+function countDrawCommands(rects, sprites) {
+  let total = (rects || []).length;
+  (sprites || []).forEach((sprite) => {
+    total += (sprite.rects || []).length;
+  });
+  return total;
+}
+
+function layerHasContent(layer) {
+  if (!layer) return false;
+  if (layer.bitmap) return true;
+  return (
+    (layer.rectangles || []).length > 0 || (layer.sprites || []).length > 0
+  );
+}
+
+/** Pinta rects/sprites en un buffer 320×200 de índices VGA. */
+function rasterizeLayerToBitmap(
+  rects,
+  sprites,
+  width,
+  height,
+  fillIndex = 0,
+) {
+  const bitmap = new Uint8Array(width * height);
+  bitmap.fill(fillIndex);
+
+  const paintRect = (rect, offsetX, offsetY) => {
+    const normalized = normalizeExportRect(rect);
+    const x1 = clamp(normalized.x1 + offsetX, 0, width - 1);
+    const y1 = clamp(normalized.y1 + offsetY, 0, height - 1);
+    const x2 = clamp(normalized.x2 + offsetX, 0, width - 1);
+    const y2 = clamp(normalized.y2 + offsetY, 0, height - 1);
+    for (let y = y1; y <= y2; y++) {
+      for (let x = x1; x <= x2; x++) {
+        bitmap[y * width + x] = normalized.colorIndex;
+      }
+    }
+  };
+
+  (rects || []).forEach((rect) => paintRect(rect, 0, 0));
+  (sprites || []).forEach((sprite) => {
+    (sprite.rects || []).forEach((rect) =>
+      paintRect(rect, sprite.x || 0, sprite.y || 0),
+    );
+  });
+
+  return bitmap;
+}
+
+/**
+ * Convierte ImageData RGBA a bitmap VGA (solo filas horizontales en ASM).
+ */
+function imageDataToBitmap(
+  data,
+  width,
+  height,
+  getColorIndex,
+  options = {},
+) {
+  const {
+    ignoreTransparent = true,
+    ignoreColorIndex = null,
+    fillIndex = BITMAP_SKIP_INDEX,
+  } = options;
+  const bitmap = new Uint8Array(width * height);
+  bitmap.fill(fillIndex);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const a = data[idx + 3];
+      const isTransparent = ignoreTransparent && a < 128;
+      if (isTransparent) continue;
+
+      const mappedColor = getColorIndex(r, g, b);
+      if (ignoreColorIndex !== null && mappedColor === ignoreColorIndex) continue;
+      bitmap[y * width + x] = mappedColor;
+    }
+  }
+
+  return bitmap;
+}
+
 // ==========================================
 // GESTIÓN DE CAPAS / FRAMES
 // ==========================================
 function getActiveEditingLayer() {
-  if (editingBackground) return backgroundLayer;
-  return frames.find((f) => f.id === activeFrameId) || null;
+  if (typeof editingBackground !== "undefined" && editingBackground)
+    return backgroundLayer;
+  return (
+    (typeof frames !== "undefined"
+      ? frames.find((f) => f.id === activeFrameId)
+      : null) || backgroundLayer
+  );
 }
 
 function getActiveFrame() {
-  return frames.find((f) => f.id === activeFrameId) || null;
+  return typeof frames !== "undefined"
+    ? frames.find((f) => f.id === activeFrameId) || null
+    : null;
 }
 
 function addFrame(name) {
@@ -1182,8 +2454,7 @@ function toggleOnionSkin() {
     btnToggleOnion.innerHTML = '<span class="btn-icon">🧅</span> Cebolla: ON';
   } else {
     btnToggleOnion.classList.replace("btn-primary", "btn-secondary");
-    btnToggleOnion.innerHTML =
-      '<span class="btn-icon">🧅</span> Cebolla: OFF';
+    btnToggleOnion.innerHTML = '<span class="btn-icon">🧅</span> Cebolla: OFF';
   }
   draw();
 }
@@ -1213,17 +2484,15 @@ function updateHistoryUI() {
   }
   const rects = layer.rectangles;
   const sprites = layer.sprites || [];
-  const totalRectCount = rects.length + sprites.reduce((a, s) => a + s.rects.length, 0);
+  const totalRectCount =
+    rects.length + sprites.reduce((a, s) => a + s.rects.length, 0);
   const spriteCount = sprites.length;
   let badgeText = `${totalRectCount} ${totalRectCount === 1 ? "Rect" : "Rects"}`;
   if (spriteCount > 0) badgeText += ` · ${spriteCount} Spr`;
   rectCountBadge.textContent = badgeText;
 
   // Sincronizar memoria: rects sueltos + rects dentro de sprites
-  const allRectsForMemory = [
-    ...rects,
-    ...sprites.flatMap((s) => s.rects),
-  ];
+  const allRectsForMemory = [...rects, ...sprites.flatMap((s) => s.rects)];
   sincronizarMemoriaDesdeHistorial(allRectsForMemory);
 
   if (rects.length === 0 && sprites.length === 0) {
@@ -1294,7 +2563,8 @@ function updateHistoryUI() {
   sprites.forEach((sprite, sIdx) => {
     // Cabecera del sprite (clic = seleccionar en canvas)
     const header = document.createElement("li");
-    header.className = "history-item sprite-header" +
+    header.className =
+      "history-item sprite-header" +
       (activeSelectedSpriteId === sprite.id ? " sprite-selected" : "");
     header.style.cssText = "cursor:pointer;border-left:3px solid #a855f7;";
     header.addEventListener("click", () => {
@@ -1309,11 +2579,13 @@ function updateHistoryUI() {
 
     const spriteIcon = document.createElement("div");
     spriteIcon.className = "history-color-preview";
-    spriteIcon.style.cssText = "background:linear-gradient(135deg,#a855f7,#6366f1);border-radius:4px;";
+    spriteIcon.style.cssText =
+      "background:linear-gradient(135deg,#a855f7,#6366f1);border-radius:4px;";
 
     const spriteLabel = document.createElement("span");
     spriteLabel.className = "history-coords";
-    spriteLabel.innerHTML = `<strong style="color:#c4b5fd;">\ud83c\udfad Sprite ${sIdx + 1}</strong>` +
+    spriteLabel.innerHTML =
+      `<strong style="color:#c4b5fd;">\ud83c\udfad Sprite ${sIdx + 1}</strong>` +
       `<span style="color:#94a3b8;font-size:10px;"> ${sprite.name || ""} (${sprite.x},${sprite.y}) · ${sprite.rects.length}r</span>`;
 
     headerDetails.appendChild(spriteIcon);
@@ -1343,9 +2615,11 @@ function updateHistoryUI() {
     // Sub-items del sprite (sus rects individuales, con indentación)
     sprite.rects.forEach((rect, rIdx) => {
       const subItem = document.createElement("li");
-      subItem.className = "history-item sprite-sub-item" +
+      subItem.className =
+        "history-item sprite-sub-item" +
         (activeSelectedSpriteId === sprite.id ? " sprite-selected-child" : "");
-      subItem.style.cssText = "padding-left:24px;opacity:0.85;border-left:3px solid rgba(168,85,247,0.3);";
+      subItem.style.cssText =
+        "padding-left:24px;opacity:0.85;border-left:3px solid rgba(168,85,247,0.3);";
 
       const subDetails = document.createElement("div");
       subDetails.className = "history-item-details";
@@ -1379,7 +2653,6 @@ function updateHistoryUI() {
     });
   });
 }
-
 
 function updateFramesUI() {
   if (!framesList) return;
@@ -1493,8 +2766,7 @@ function toggleGrid() {
   gridActive = !gridActive;
   if (gridActive) {
     canvasOverlay.classList.add("grid-active");
-    btnToggleGrid.innerHTML =
-      '<span class="btn-icon">🌐</span> Cuadrícula: ON';
+    btnToggleGrid.innerHTML = '<span class="btn-icon">🌐</span> Cuadrícula: ON';
     btnToggleGrid.classList.replace("btn-secondary", "btn-primary");
   } else {
     canvasOverlay.classList.remove("grid-active");
@@ -1515,7 +2787,9 @@ function clearCanvas() {
       eliminarInstruccion(getTipoInstruccion(rect)),
     );
     (layer.sprites || []).forEach((sprite) =>
-      sprite.rects.forEach((r) => eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION")),
+      sprite.rects.forEach((r) =>
+        eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
+      ),
     );
     layer.rectangles = [];
     layer.sprites = [];
@@ -1584,11 +2858,25 @@ function buildCommandsBlock(rects, sprites) {
 }
 
 /**
- * Genera fondo.asm — Capa de fondo persistente.
- * Proc name: "fondo"
+ * Formatea un bitmap 320×200 como filas DB (máx. 200 líneas — seguro para TASM).
  */
-function generateFondoASM(rects, sprites) {
-  const commands = buildCommandsBlock(rects, sprites);
+function formatBitmapAsDBRows(bitmap, width, height) {
+  const lines = [];
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * width;
+    const row = bitmap.slice(rowStart, rowStart + width);
+    const first = row[0];
+    if (row.every((value) => value === first)) {
+      lines.push(`    DB ${width} DUP(${first})`);
+    } else {
+      lines.push(`    DB ${Array.from(row).join(",")}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Rutina compartida: copia bitmap completo a memoria de video VGA. */
+function generateDibujarASM() {
   return [
     "INCLUDE LIBRO.LIB",
     "INCLUDE M.LIB",
@@ -1596,28 +2884,101 @@ function generateFondoASM(rects, sprites) {
     ".MODEL LARGE",
     ".CODE",
     "",
-    "PUBLIC fondo",
-    "fondo PROC",
+    "PUBLIC DIBUJAR_FONDO",
+    "PUBLIC DIBUJAR_FRAME",
     "",
-    "MOV AX,@DATA",
-    "MOV DS,AX",
+    "; Copia 320×200 bytes de DS:SI a pantalla VGA (modo 13h)",
+    "DIBUJAR_FONDO PROC FAR",
+    "    PUSH DS",
+    "    MOV AX, 0A000H",
+    "    MOV ES, AX",
+    "    CLD",
+    "    XOR DI, DI",
+    "    MOV CX, 320*200",
+    "    REP MOVSB",
+    "    POP DS",
+    "    RET",
+    "DIBUJAR_FONDO ENDP",
     "",
-    commands.trimEnd(),
+    "; Copia 320×200 bytes omitiendo píxeles con índice BL (transparentes)",
+    "DIBUJAR_FRAME PROC FAR",
+    "    PUSH DS",
+    "    PUSH BX",
+    "    MOV AX, 0A000H",
+    "    MOV ES, AX",
+    "    CLD",
+    "    XOR DI, DI",
+    "    MOV CX, 320*200",
+    "@@loop:",
+    "    LODSB",
+    "    CMP AL, BL",
+    "    JE @@skip",
+    "    MOV ES:[DI], AL",
+    "@@skip:",
+    "    INC DI",
+    "    LOOP @@loop",
+    "    POP BX",
+    "    POP DS",
+    "    RET",
+    "DIBUJAR_FRAME ENDP",
     "",
-    "RET",
-    "fondo ENDP",
-    "",
-    "END fondo",
+    "END",
     "",
   ].join("\n");
 }
 
 /**
- * Genera F1.asm ... Fn.asm — Un frame de animación.
- * @param {string} procName  "F1", "F2", etc.
- * @param {Array}  rects     rectángulos del frame
+ * Genera un .asm compacto con bitmap en .DATA (1 archivo por capa).
  */
-function generateFrameASM(procName, rects, sprites) {
+function generateBitmapASM(procName, bitmap, mode = "frame") {
+  const dataRows = formatBitmapAsDBRows(
+    bitmap,
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT,
+  );
+  const drawCall =
+    mode === "fondo"
+      ? "    CALL DIBUJAR_FONDO"
+      : [
+          `    MOV BL, ${BITMAP_SKIP_INDEX}`,
+          "    CALL DIBUJAR_FRAME",
+        ].join("\n");
+
+  return [
+    "INCLUDE LIBRO.LIB",
+    "INCLUDE M.LIB",
+    "",
+    "EXTRN DIBUJAR_FONDO:FAR",
+    "EXTRN DIBUJAR_FRAME:FAR",
+    "",
+    ".MODEL LARGE",
+    "",
+    ".DATA",
+    `PUBLIC ${procName}_IMG`,
+    `${procName}_IMG LABEL BYTE`,
+    dataRows,
+    "",
+    ".CODE",
+    `PUBLIC ${procName}`,
+    `${procName} PROC`,
+    "",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    `LEA SI, ${procName}_IMG`,
+    drawCall,
+    "",
+    "RET",
+    `${procName} ENDP`,
+    "",
+    `END ${procName}`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Genera un procedimiento ASM con bloque DRAW_REGION / PINTAR_PIXEL (capas pequeñas).
+ */
+function generateSimpleProcASM(procName, rects, sprites) {
   const commands = buildCommandsBlock(rects, sprites);
   return [
     "INCLUDE LIBRO.LIB",
@@ -1640,6 +3001,75 @@ function generateFrameASM(procName, rects, sprites) {
     `END ${procName}`,
     "",
   ].join("\n");
+}
+
+/**
+ * Genera export ASM para una capa: bitmap (GIF/denso) o DRAW_REGION (manual/sparse).
+ * @returns {{ files: Record<string,string>, compileOrder: string[], linkObjects: string[] }}
+ */
+function generateLayerASMExport(baseName, rects, sprites, options = {}) {
+  const result = {
+    files: {},
+    compileOrder: [],
+    linkObjects: [],
+  };
+
+  const safeRects = (rects || []).map(normalizeExportRect);
+  const safeSprites = sprites || [];
+  let bitmap = options.bitmap || null;
+  const layerMode = options.mode || (baseName === "fondo" ? "fondo" : "frame");
+
+  if (!bitmap) {
+    const totalCommands = countDrawCommands(safeRects, safeSprites);
+    if (totalCommands > BITMAP_EXPORT_THRESHOLD) {
+      bitmap = rasterizeLayerToBitmap(
+        safeRects,
+        safeSprites,
+        CANVAS_WIDTH,
+        CANVAS_HEIGHT,
+        layerMode === "fondo" ? 0 : BITMAP_SKIP_INDEX,
+      );
+    }
+  }
+
+  const filename = `${baseName}.asm`;
+
+  if (bitmap) {
+    result.files[filename] = generateBitmapASM(baseName, bitmap, layerMode);
+  } else {
+    result.files[filename] = generateSimpleProcASM(
+      baseName,
+      safeRects,
+      safeSprites,
+    );
+  }
+
+  result.compileOrder.push(filename);
+  result.linkObjects.push(`${baseName}.obj`);
+  return result;
+}
+
+/**
+ * Genera fondo.asm — Capa de fondo persistente.
+ * Proc name: "fondo"
+ */
+function generateFondoASM(rects, sprites, bitmap = null) {
+  if (bitmap) {
+    return generateBitmapASM("fondo", bitmap, "fondo");
+  }
+  return generateSimpleProcASM("fondo", rects, sprites);
+}
+
+/**
+ * Genera F1.asm ... Fn.asm — Un frame de animación.
+ * @param {string} procName  "F1", "F2", etc.
+ * @param {Array}  rects     rectángulos del frame
+ */
+function generateFrameASM(procName, rects, sprites, bitmap = null) {
+  if (bitmap) {
+    return generateBitmapASM(procName, bitmap, "frame");
+  }
+  return generateSimpleProcASM(procName, rects, sprites);
 }
 
 /**
@@ -1706,29 +3136,17 @@ function generateOrquestaASM(frameCount) {
   ].join("\n");
 }
 
-function generateBuildBAT(frameCount) {
-  const lines = [
-    "@echo off",
-    "echo Compilando fondo.asm...",
-    "tasm fondo.asm",
-    "if errorlevel 1 goto error",
-    "",
-  ];
+function generateBuildBAT(compileOrder) {
+  const lines = ["@echo off", ""];
 
-  for (let i = 1; i <= frameCount; i++) {
-    lines.push(
-      `echo Compilando F${i}.asm...`,
-      `tasm F${i}.asm`,
-      "if errorlevel 1 goto error",
-      "",
-    );
-  }
+  compileOrder.forEach((asmFile) => {
+    lines.push(`echo Compilando ${asmFile}...`);
+    lines.push(`tasm ${asmFile}`);
+    lines.push("if errorlevel 1 goto error");
+    lines.push("");
+  });
 
   lines.push(
-    "echo Compilando Orquesta.asm...",
-    "tasm Orquesta.asm",
-    "if errorlevel 1 goto error",
-    "",
     "echo Enlazando Orquesta.exe...",
     "tlink @link.rsp",
     "if errorlevel 1 goto error",
@@ -1747,12 +3165,8 @@ function generateBuildBAT(frameCount) {
   return lines.join("\r\n") + "\r\n";
 }
 
-function generateLinkResponse(frameCount) {
-  const objects = ["Orquesta.obj", "fondo.obj"];
-
-  for (let i = 1; i <= frameCount; i++) {
-    objects.push(`F${i}.obj`);
-  }
+function generateLinkResponse(linkObjects) {
+  const objects = ["Orquesta.obj", ...linkObjects.filter((obj) => obj !== "Orquesta.obj")];
 
   return (
     objects
@@ -1770,28 +3184,64 @@ function generateLinkResponse(frameCount) {
  *   Orquesta.asm  — orquestador principal
  */
 async function exportASM() {
-  // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
   const allLayers = [backgroundLayer, ...frames];
-  const totalRects = allLayers.reduce((a, l) => a + l.rectangles.length + (l.sprites || []).length, 0);
+  const hasContent = allLayers.some((layer) => layerHasContent(layer));
 
-  if (totalRects === 0) {
+  if (!hasContent) {
     alert("No hay datos que exportar. Dibuja algo primero.");
     return;
   }
 
-  // Generar archivos
-  const files = {}; // { filename: content }
+  const files = {};
+  const compileOrder = ["dibujar.asm"];
+  const linkObjects = ["dibujar.obj"];
+  let usesBitmap = false;
 
-  files["fondo.asm"] = generateFondoASM(backgroundLayer.rectangles, backgroundLayer.sprites);
+  files["dibujar.asm"] = generateDibujarASM();
+
+  const fondoExport = generateLayerASMExport(
+    "fondo",
+    backgroundLayer.rectangles,
+    backgroundLayer.sprites,
+    {
+      bitmap: backgroundLayer.bitmap || null,
+      mode: "fondo",
+    },
+  );
+  Object.assign(files, fondoExport.files);
+  compileOrder.push(...fondoExport.compileOrder);
+  linkObjects.push(...fondoExport.linkObjects);
+  if (backgroundLayer.bitmap || fondoExport.files["fondo.asm"]?.includes("_IMG")) {
+    usesBitmap = true;
+  }
 
   frames.forEach((frame, i) => {
     const procName = `F${i + 1}`;
-    files[`${procName}.asm`] = generateFrameASM(procName, frame.rectangles, frame.sprites || []);
+    const frameExport = generateLayerASMExport(
+      procName,
+      frame.rectangles,
+      frame.sprites || [],
+      {
+        bitmap: frame.bitmap || null,
+        mode: "frame",
+      },
+    );
+    Object.assign(files, frameExport.files);
+    compileOrder.push(...frameExport.compileOrder);
+    linkObjects.push(...frameExport.linkObjects);
+    if (frame.bitmap) usesBitmap = true;
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
-  files["build.bat"] = generateBuildBAT(frames.length);
-  files["link.rsp"] = generateLinkResponse(frames.length);
+  compileOrder.push("Orquesta.asm");
+  files["build.bat"] = generateBuildBAT(compileOrder);
+  files["link.rsp"] = generateLinkResponse(linkObjects);
+
+  if (usesBitmap) {
+    console.info(
+      "Exportación en modo bitmap: 1 .asm por frame + dibujar.asm compartido.",
+    );
+  }
 
   // Intentar ZIP con JSZip
   if (typeof JSZip !== "undefined") {
@@ -1938,10 +3388,12 @@ function parseAsmLine(line) {
 
   // PINTAR_PIXEL (X), (Y), (COLOR_DECIMAL) - ej: PINTAR_PIXEL (10), (20), (15)
   // Permite paréntesis opcionales y espacios flexibles
-  const pixelRegex = /PINTAR_PIXEL\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?/i;
+  const pixelRegex =
+    /PINTAR_PIXEL\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?\s*,\s*\(?\s*(\d+)\s*\)?/i;
 
   // DRAW_REGION X1,Y1, X2,Y2 , COLOR_HEX - ej: DRAW_REGION 10,20, 30,40 , 00FFH o (00FF)H
-  const rectRegex = /DRAW_REGION\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\(?\s*([0-9A-F]+)\s*\)?H/i;
+  const rectRegex =
+    /DRAW_REGION\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*\(?\s*([0-9A-F]+)\s*\)?H/i;
 
   let match = cleanLine.match(pixelRegex);
   if (match) {
@@ -1955,7 +3407,7 @@ function parseAsmLine(line) {
       y1: y,
       x2: x,
       y2: y,
-      colorIndex: colorIndex
+      colorIndex: colorIndex,
     };
   }
 
@@ -1973,7 +3425,7 @@ function parseAsmLine(line) {
       y1: y1,
       x2: x2,
       y2: y2,
-      colorIndex: colorIndex
+      colorIndex: colorIndex,
     };
   }
 
@@ -1989,15 +3441,16 @@ function parseAsmContentWithSprites(content) {
   const lines = content.split(/\r?\n/);
   const rectangles = [];
   const sprites = [];
-  
+
   let currentSprite = null; // { name, posX, posY, rects: [] }
-  
-  const spriteStartRegex = /;\s*Sprite\s+(\d+)\s*(?:-\s*(.*?))?(?:\(pos:\s*(\d+)\s*,\s*(\d+)\s*\))?/i;
+
+  const spriteStartRegex =
+    /;\s*Sprite\s+(\d+)\s*(?:-\s*(.*?))?(?:\(pos:\s*(\d+)\s*,\s*(\d+)\s*\))?/i;
   const spriteEndRegex = /;\s*Fin\s+Sprite\s+\d+/i;
-  
+
   for (let line of lines) {
     const trimmed = line.trim();
-    
+
     // Check for sprite start comment
     const startMatch = trimmed.match(spriteStartRegex);
     if (startMatch) {
@@ -2005,7 +3458,8 @@ function parseAsmContentWithSprites(content) {
       if (currentSprite && currentSprite.rects.length > 0) {
         sprites.push(currentSprite);
       }
-      const spriteName = (startMatch[2] || "").trim() || `Sprite ${startMatch[1]}`;
+      const spriteName =
+        (startMatch[2] || "").trim() || `Sprite ${startMatch[1]}`;
       const posX = startMatch[3] ? parseInt(startMatch[3], 10) : 0;
       const posY = startMatch[4] ? parseInt(startMatch[4], 10) : 0;
       currentSprite = {
@@ -2016,7 +3470,7 @@ function parseAsmContentWithSprites(content) {
       };
       continue;
     }
-    
+
     // Check for sprite end comment
     if (currentSprite && spriteEndRegex.test(trimmed)) {
       if (currentSprite.rects.length > 0) {
@@ -2025,7 +3479,7 @@ function parseAsmContentWithSprites(content) {
       currentSprite = null;
       continue;
     }
-    
+
     // Parse ASM instruction
     const rect = parseAsmLine(line);
     if (rect) {
@@ -2036,12 +3490,12 @@ function parseAsmContentWithSprites(content) {
       }
     }
   }
-  
+
   // Close any unclosed sprite
   if (currentSprite && currentSprite.rects.length > 0) {
     sprites.push(currentSprite);
   }
-  
+
   // Convert parsed sprites to the app format:
   // The ASM has absolute coords; we need to compute relative coords based on sprite position
   const appSprites = sprites.map((s) => {
@@ -2061,8 +3515,298 @@ function parseAsmContentWithSprites(content) {
       })),
     };
   });
-  
+
   return { rectangles, sprites: appSprites };
+}
+
+// ==========================================
+// IMPORTACIÓN Y PROCESAMIENTO DE GIF ANIMADO
+// ==========================================
+
+let currentGifInfo = {
+  frames: [],
+  width: 0,
+  height: 0,
+  filename: ""
+};
+
+/**
+ * Reconstruye los fotogramas de un GIF teniendo en cuenta los métodos de descarte (Disposal Methods).
+ */
+function reconstructGIF(gifFrames, gifWidth, gifHeight) {
+  const canvas = document.createElement("canvas");
+  canvas.width = gifWidth;
+  canvas.height = gifHeight;
+  const ctx = canvas.getContext("2d");
+
+  const frameImages = []; // Array de ImageData
+  const canvasStates = []; // Historial de estados para disposalType === 3
+
+  for (let index = 0; index < gifFrames.length; index++) {
+    const frame = gifFrames[index];
+
+    // Guardar el estado actual del lienzo (antes de dibujar) para disposalType === 3
+    const backup = ctx.getImageData(0, 0, gifWidth, gifHeight);
+
+    // Procesar el descarte del frame anterior
+    if (index > 0) {
+      const prevFrame = gifFrames[index - 1];
+      if (prevFrame.disposalType === 2) {
+        // Limpiar el área del fotograma anterior
+        ctx.clearRect(
+          prevFrame.dims.left,
+          prevFrame.dims.top,
+          prevFrame.dims.width,
+          prevFrame.dims.height
+        );
+      } else if (prevFrame.disposalType === 3) {
+        // Restaurar al estado previo
+        const prevState = canvasStates.pop();
+        if (prevState) {
+          ctx.putImageData(prevState, 0, 0);
+        }
+      }
+    }
+
+    // Guardar el backup en el historial
+    canvasStates.push(backup);
+
+    // Dibujar el parche del frame actual
+    const patchCanvas = document.createElement("canvas");
+    patchCanvas.width = frame.dims.width;
+    patchCanvas.height = frame.dims.height;
+    const patchCtx = patchCanvas.getContext("2d");
+    const imgData = patchCtx.createImageData(frame.dims.width, frame.dims.height);
+    imgData.data.set(frame.patch);
+    patchCtx.putImageData(imgData, 0, 0);
+
+    ctx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
+
+    // Guardar imagen final compuesta de este fotograma
+    frameImages.push(ctx.getImageData(0, 0, gifWidth, gifHeight));
+  }
+
+  return frameImages;
+}
+
+/**
+ * Maneja la selección del archivo GIF y abre el modal de opciones de importación.
+ */
+async function handleImportGIFFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const gifImportModal = document.getElementById("gif-import-modal");
+  const gifInfoDetails = document.getElementById("gif-info-details");
+  const btnConfirm = document.getElementById("btn-confirm-gif-import");
+
+  if (!gifImportModal || !gifInfoDetails) return;
+
+  try {
+    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Cargando archivo y dependencias...</span>';
+    gifImportModal.classList.add("active");
+    btnConfirm.disabled = true;
+
+    // Importación dinámica de la librería de descompresión de GIF
+    const { parseGIF, decompressFrames } = await import("https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm");
+
+    // Leer el archivo como ArrayBuffer
+    const arrayBuffer = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+
+    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Decodificando fotogramas de la animación...</span>';
+    const parsedGif = parseGIF(arrayBuffer);
+    const decompressed = decompressFrames(parsedGif, true);
+
+    if (!decompressed || decompressed.length === 0) {
+      throw new Error("No se encontraron fotogramas válidos en el archivo GIF.");
+    }
+
+    currentGifInfo = {
+      frames: decompressed,
+      width: decompressed[0].dims.width,
+      height: decompressed[0].dims.height,
+      filename: file.name
+    };
+
+    gifInfoDetails.innerHTML = `
+      <strong>Archivo:</strong> ${file.name}<br>
+      <strong>Dimensiones originales:</strong> ${currentGifInfo.width}x${currentGifInfo.height} px<br>
+      <strong>Total fotogramas:</strong> ${decompressed.length}
+    `;
+
+    if (currentGifInfo.width > 320 || currentGifInfo.height > 200) {
+      gifInfoDetails.innerHTML += `<br><span style="color: var(--accent-orange); font-weight: 600;">⚠️ El GIF es mayor que 320x200 px. Se escalará proporcionalmente de forma automática.</span>`;
+    }
+
+    btnConfirm.disabled = false;
+  } catch (err) {
+    console.error(err);
+    gifInfoDetails.innerHTML = `<span style="color: var(--danger);">Error: ${err.message}</span>`;
+    btnConfirm.disabled = true;
+  } finally {
+    e.target.value = "";
+  }
+}
+
+/**
+ * Procesa los fotogramas según la configuración elegida e integra los datos de fotogramas ASM.
+ */
+async function processSelectedGIF() {
+  if (!currentGifInfo || currentGifInfo.frames.length === 0) {
+    alert("No hay datos de GIF cargados.");
+    return;
+  }
+
+  const gifImportModal = document.getElementById("gif-import-modal");
+  const scaling = document.getElementById("gif-scaling").value;
+  const scaleFactorInput = document.getElementById("gif-scale-factor");
+  const scaleFactor = parseInt(scaleFactorInput.value, 10) || 1;
+  const offsetMode = document.getElementById("gif-offset-mode").value;
+  const offsetXInput = document.getElementById("gif-offset-x");
+  const offsetYInput = document.getElementById("gif-offset-y");
+  const customOffsetX = parseInt(offsetXInput.value, 10) || 0;
+  const customOffsetY = parseInt(offsetYInput.value, 10) || 0;
+  const optimization = document.getElementById("gif-optimization").value;
+  const importMode = document.getElementById("gif-import-mode").value;
+  const maxFramesInput = document.getElementById("gif-max-frames");
+  const maxFramesLimit = parseInt(maxFramesInput.value, 10) || 0;
+  const ignoreTransparent = document.getElementById("gif-ignore-background").checked;
+  const ignoreColorMode = document.getElementById("gif-ignore-color-mode").value;
+  const ignoreColorCustom = parseInt(
+    document.getElementById("gif-ignore-color-index").value,
+    10,
+  );
+  let ignoreColorIndex = null;
+  if (ignoreColorMode === "index0") {
+    ignoreColorIndex = 0;
+  } else if (ignoreColorMode === "custom") {
+    ignoreColorIndex = Number.isFinite(ignoreColorCustom) ? ignoreColorCustom : 0;
+  }
+
+  if (gifImportModal) {
+    gifImportModal.classList.remove("active");
+  }
+
+  // Reconstruir fotogramas completos
+  const renderedFrames = reconstructGIF(currentGifInfo.frames, currentGifInfo.width, currentGifInfo.height);
+
+  let framesToImport = renderedFrames;
+  if (maxFramesLimit > 0 && maxFramesLimit < renderedFrames.length) {
+    framesToImport = renderedFrames.slice(0, maxFramesLimit);
+  }
+
+  // Limpiar o anexar
+  if (importMode === "replace") {
+    frames = [];
+    frameIdCounter = 0;
+    rectangleIdCounter = 0;
+  }
+
+  // Caché de colores VGA para un mapeo veloz
+  const colorCache = new Map();
+  function getCachedClosestVGAColor(r, g, b) {
+    const key = (r << 16) | (g << 8) | b;
+    if (colorCache.has(key)) return colorCache.get(key);
+
+    let minDistance = Infinity;
+    let closestIndex = 15; // default blanco
+    for (let i = 0; i < VGA_PALETTE.length; i++) {
+      const [vr, vg, vb] = VGA_PALETTE[i];
+      const dist = (r - vr) ** 2 + (g - vg) ** 2 + (b - vb) ** 2;
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+    colorCache.set(key, closestIndex);
+    return closestIndex;
+  }
+
+  const targetWidth = 320;
+  const targetHeight = 200;
+  const newImportedFrames = [];
+
+  for (let fIdx = 0; fIdx < framesToImport.length; fIdx++) {
+    const imgData = framesToImport[fIdx];
+
+    // Lienzo del fotograma original
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = currentGifInfo.width;
+    tempCanvas.height = currentGifInfo.height;
+    tempCanvas.getContext("2d").putImageData(imgData, 0, 0);
+
+    // Lienzo escalado de destino (VGA 320x200)
+    const vgaCanvas = document.createElement("canvas");
+    vgaCanvas.width = targetWidth;
+    vgaCanvas.height = targetHeight;
+    const vgaCtx = vgaCanvas.getContext("2d");
+    vgaCtx.imageSmoothingEnabled = false; // Mapeo exacto pixel art sin difuminados
+
+    let sw = currentGifInfo.width;
+    let sh = currentGifInfo.height;
+
+    if (scaling === "center-fit") {
+      const scale = Math.min(targetWidth / currentGifInfo.width, targetHeight / currentGifInfo.height);
+      sw = currentGifInfo.width * scale;
+      sh = currentGifInfo.height * scale;
+    } else if (scaling === "stretch") {
+      sw = targetWidth;
+      sh = targetHeight;
+    } else if (scaling === "factor") {
+      sw = currentGifInfo.width * scaleFactor;
+      sh = currentGifInfo.height * scaleFactor;
+    }
+
+    let dx = 0;
+    let dy = 0;
+    if (offsetMode === "center") {
+      dx = Math.floor((targetWidth - sw) / 2);
+      dy = Math.floor((targetHeight - sh) / 2);
+    } else {
+      dx = customOffsetX;
+      dy = customOffsetY;
+    }
+
+    // Dibujar frame redimensionado en el buffer VGA
+    vgaCtx.drawImage(tempCanvas, 0, 0, currentGifInfo.width, currentGifInfo.height, dx, dy, sw, sh);
+
+    const vgaImgData = vgaCtx.getImageData(0, 0, targetWidth, targetHeight);
+
+    const frameBitmap = imageDataToBitmap(
+      vgaImgData.data,
+      targetWidth,
+      targetHeight,
+      getCachedClosestVGAColor,
+      { ignoreTransparent, ignoreColorIndex, fillIndex: BITMAP_SKIP_INDEX },
+    );
+
+    const fObj = {
+      id: ++frameIdCounter,
+      name: `GIF F${fIdx + 1}`,
+      rectangles: [],
+      sprites: [],
+      bitmap: frameBitmap,
+      visible: true,
+    };
+    frames.push(fObj);
+    newImportedFrames.push(fObj);
+  }
+
+  if (newImportedFrames.length > 0) {
+    switchToFrame(newImportedFrames[0].id);
+  } else {
+    switchToBackground();
+  }
+
+  alert(
+    `Importación exitosa: ${framesToImport.length} fotograma(s) como bitmap VGA.\n` +
+      `Al exportar obtendrás 1 F1.asm por frame + dibujar.asm (compilación rápida).`,
+  );
 }
 
 /**
@@ -2097,7 +3841,7 @@ async function handleImportZIP(e) {
       if (match) {
         frameFiles.push({
           num: parseInt(match[1], 10),
-          entry: zipEntry
+          entry: zipEntry,
         });
       }
     });
@@ -2105,7 +3849,9 @@ async function handleImportZIP(e) {
     frameFiles.sort((a, b) => a.num - b.num);
 
     if (frameFiles.length === 0) {
-      alert("No se encontraron archivos de frames de animación (F1.asm, F2.asm...) en el ZIP.");
+      alert(
+        "No se encontraron archivos de frames de animación (F1.asm, F2.asm...) en el ZIP.",
+      );
       return;
     }
 
@@ -2118,25 +3864,33 @@ async function handleImportZIP(e) {
         name: `Frame ${fInfo.num}`,
         rectangles: parsed.rectangles,
         sprites: parsed.sprites,
-        visible: true
+        visible: true,
       });
     }
 
     // 3. Reemplazar estado de la aplicación
     let localRectId = 0;
     let localSpriteId = 0;
-    
+
     backgroundLayer.rectangles = bgParsed.rectangles;
-    backgroundLayer.rectangles.forEach(r => { r.id = ++localRectId; });
+    backgroundLayer.rectangles.forEach((r) => {
+      r.id = ++localRectId;
+    });
     backgroundLayer.sprites = bgParsed.sprites;
-    backgroundLayer.sprites.forEach(s => { s.id = ++localSpriteId; });
+    backgroundLayer.sprites.forEach((s) => {
+      s.id = ++localSpriteId;
+    });
 
     frames = [];
     frameIdCounter = 0;
-    importedFrames.forEach(f => {
+    importedFrames.forEach((f) => {
       f.id = ++frameIdCounter;
-      f.rectangles.forEach(r => { r.id = ++localRectId; });
-      (f.sprites || []).forEach(s => { s.id = ++localSpriteId; });
+      f.rectangles.forEach((r) => {
+        r.id = ++localRectId;
+      });
+      (f.sprites || []).forEach((s) => {
+        s.id = ++localSpriteId;
+      });
       frames.push(f);
     });
 
@@ -2146,7 +3900,9 @@ async function handleImportZIP(e) {
 
     // Volver a la capa de fondo y actualizar la UI
     switchToBackground();
-    const totalSprites = bgParsed.sprites.length + importedFrames.reduce((a, f) => a + (f.sprites || []).length, 0);
+    const totalSprites =
+      bgParsed.sprites.length +
+      importedFrames.reduce((a, f) => a + (f.sprites || []).length, 0);
     let msg = `Proyecto importado con éxito.\n1 capa de fondo y ${frames.length} frame(s).`;
     if (totalSprites > 0) msg += `\n${totalSprites} sprite(s) detectados.`;
     alert(msg);
@@ -2165,10 +3921,10 @@ function deleteSelectedSprite() {
   if (activeSelectedSpriteId === null) return;
   const layer = getActiveEditingLayer();
   if (!layer || !layer.sprites) return;
-  
-  const sprite = layer.sprites.find(s => s.id === activeSelectedSpriteId);
+
+  const sprite = layer.sprites.find((s) => s.id === activeSelectedSpriteId);
   if (!sprite) return;
-  
+
   sprite.rects.forEach((r) =>
     eliminarInstruccion(getTipoInstruccion(r) || "DRAW_REGION"),
   );
@@ -2186,7 +3942,10 @@ function deleteSelectedSprite() {
 // Keyboard shortcuts
 document.addEventListener("keydown", (e) => {
   // Delete / Suprimir → eliminar sprite seleccionado
-  if ((e.key === "Delete" || e.key === "Backspace") && activeSelectedSpriteId !== null) {
+  if (
+    (e.key === "Delete" || e.key === "Backspace") &&
+    activeSelectedSpriteId !== null
+  ) {
     // No interceptar si el foco está en un input/textarea
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
     e.preventDefault();

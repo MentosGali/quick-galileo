@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -32,7 +32,36 @@
           </div>
         </div>
         <div class="actions-header">
-          <div class="mode-selector">
+          <!-- Selector Principal de Entorno: Modo 1 (Video) vs Modo 2 (Texto) -->
+          <div
+            class="environment-selector"
+            style="
+              display: flex;
+              gap: 6px;
+              margin-right: 12px;
+              background: rgba(0, 0, 0, 0.3);
+              padding: 4px;
+              border-radius: 8px;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+            "
+          >
+            <button
+              id="btn-env-video"
+              class="btn btn-primary active"
+              title="Modo 1: Animación y Dibujo Gráfico 320x200"
+            >
+              🎮 Modo 1: Video
+            </button>
+            <button
+              id="btn-env-text"
+              class="btn btn-secondary"
+              title="Modo 2: Formulario y Pizarra Modo Texto BIOS 80x25"
+            >
+              📝 Modo 2: Texto
+            </button>
+          </div>
+
+          <div class="mode-selector" id="video-tools-group">
             <button
               id="btn-mode-rect"
               class="btn btn-primary active"
@@ -86,7 +115,253 @@
         </div>
       </header>
 
-      <div class="main-layout">
+      <!-- VISTA MODO 2: TEXTO 80x25 -->
+      <div id="text-mode-container" class="main-layout" style="display: none">
+        <main class="canvas-section">
+          <div class="canvas-wrapper">
+            <div
+              class="active-layer-bar"
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              "
+            >
+              <span class="active-layer-label" style="color: #6366f1"
+                >📝 Pizarra Modo Texto BIOS (80×25)</span
+              >
+              <!-- Barra de Herramientas de la Pizarra Modo Texto -->
+              <div class="text-tools-bar" style="display: flex; gap: 6px">
+                <button
+                  id="btn-text-tool-cuadro"
+                  class="btn btn-primary active btn-sm"
+                  title="Dibujar Cuadro con Atributo de Color"
+                >
+                  🔲 Cuadro Color
+                </button>
+                <button
+                  id="btn-text-tool-label"
+                  class="btn btn-secondary btn-sm"
+                  title="Picar y colocar Texto/Etiqueta libre"
+                >
+                  🔤 Texto
+                </button>
+                <button
+                  id="btn-text-tool-input"
+                  class="btn btn-secondary btn-sm"
+                  title="Picar y colocar Campo de Entrada (Buffer)"
+                >
+                  📥 Entrada
+                </button>
+                <button
+                  id="btn-text-tool-select"
+                  class="btn btn-secondary btn-sm"
+                  title="Seleccionar, mover o editar elementos"
+                >
+                  🎯 Seleccionar / Mover
+                </button>
+              </div>
+            </div>
+
+            <!-- Consola de previsualización 80x25 -->
+            <div
+              class="text-console-container"
+              style="
+                background: #000;
+                border: 2px solid #334155;
+                border-radius: 0;
+                overflow: hidden;
+                position: relative;
+              "
+            >
+              <div
+                id="text-console"
+                style="
+                  width: 100%;
+                  height: 380px;
+                  font-family: &quot;JetBrains Mono&quot;, monospace;
+                  font-size: 13px;
+                  line-height: 15.2px;
+                  background: #000;
+                  color: #aaa;
+                  white-space: pre;
+                  position: relative;
+                  cursor: crosshair;
+                  user-select: none;
+                "
+              ></div>
+            </div>
+
+            <div class="zoom-info">
+              <span
+                >Pizarra Modo Texto BIOS 03h | Clic izquierdo: Dibujar/Colocar |
+                Clic derecho: Propiedades</span
+              >
+              <span id="text-coords-hover" class="coords-hover"
+                >Col: 0 Row: 0</span
+              >
+            </div>
+          </div>
+        </main>
+
+        <!-- Menú Contextual (Clic Derecho) -->
+        <div
+          id="text-context-menu"
+          style="
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            background: #0f172a;
+            border: 1px solid #6366f1;
+            border-radius: 8px;
+            padding: 10px;
+            width: 220px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8);
+          "
+        >
+          <h5
+            id="ctx-title"
+            style="
+              color: #a5b4fc;
+              margin-bottom: 8px;
+              font-size: 12px;
+              border-bottom: 1px solid #334155;
+              padding-bottom: 4px;
+            "
+          >
+            Propiedades del Elemento
+          </h5>
+
+          <div id="ctx-field-text" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Texto actual / nuevo</label
+            >
+            <div
+              id="ctx-current-text"
+              style="font-size: 10px; color: #a5b4fc; margin-bottom: 4px"
+            >
+              Actual: -
+            </div>
+            <input
+              type="text"
+              id="ctx-input-text"
+              class="layer-name-input"
+              style="width: 100%; border: 1px solid #334155"
+            />
+          </div>
+
+          <div id="ctx-field-pos" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Posición del cursor</label
+            >
+            <div style="display: flex; gap: 6px">
+              <input
+                type="number"
+                id="ctx-input-row"
+                min="0"
+                max="24"
+                class="layer-name-input"
+                style="width: 50%; border: 1px solid #334155"
+                placeholder="Row"
+              />
+              <input
+                type="number"
+                id="ctx-input-col"
+                min="0"
+                max="79"
+                class="layer-name-input"
+                style="width: 50%; border: 1px solid #334155"
+                placeholder="Col"
+              />
+            </div>
+          </div>
+
+          <div id="ctx-field-maxlen" style="margin-bottom: 6px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Tamaño / max caracteres</label
+            >
+            <input
+              type="number"
+              id="ctx-input-maxlen"
+              min="1"
+              max="50"
+              class="layer-name-input"
+              style="width: 100%; border: 1px solid #334155"
+            />
+          </div>
+
+          <div id="ctx-field-color" style="margin-bottom: 8px">
+            <label style="font-size: 10px; color: #94a3b8; display: block"
+              >Color BIOS</label
+            >
+            <div id="ctx-color-palette" class="ctx-color-palette"></div>
+          </div>
+
+          <div style="display: flex; gap: 6px">
+            <button
+              id="ctx-btn-save"
+              class="btn btn-primary btn-sm"
+              style="flex: 1"
+            >
+              Guardar
+            </button>
+            <button
+              id="ctx-btn-delete"
+              class="btn btn-danger btn-sm"
+              style="flex: 1"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+
+        <aside class="sidebar-section">
+          <div class="sidebar-header">
+            <h3>Elementos en Pizarra</h3>
+            <span class="count-badge" id="text-fields-count">0 Objetos</span>
+          </div>
+          <div class="sidebar-body">
+            <div class="instructions-card">
+              <h4>🎨 Pizarra Libre Modo Texto</h4>
+              <p style="font-size: 12px; color: #94a3b8; line-height: 1.4">
+                Dibuja cuadros de colores, textos sueltos o entradas en
+                cualquier lugar. Todo se exporta a <code>mt1.asm</code> y
+                <code>texto.bat</code>.
+              </p>
+            </div>
+
+            <!-- Lista de elementos dibujados en la pizarra de texto -->
+            <ul
+              id="text-fields-list"
+              class="history-list"
+              style="max-height: 380px; overflow-y: auto"
+            >
+              <!-- Inyectado por JS -->
+            </ul>
+          </div>
+
+          <div
+            class="sidebar-footer"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              padding: 12px;
+            "
+          >
+            <button
+              id="btn-export-text-asm"
+              class="btn btn-primary btn-block"
+              style="width: 100%"
+            >
+              <span class="btn-icon">📝</span> Exportar Modo Texto (mt1.asm +
+              texto.bat)
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <div id="video-mode-container" class="main-layout">
         <!-- IZQUIERDA: Canvas + Paleta -->
         <main class="canvas-section">
           <div class="canvas-wrapper">
@@ -240,18 +515,154 @@
             </div>
           </div>
 
-          <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 8px; padding: 12px;">
-            <button id="btn-export" class="btn btn-primary btn-block" style="width: 100%;">
+          <div
+            class="sidebar-footer"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              padding: 12px;
+            "
+          >
+            <button
+              id="btn-export"
+              class="btn btn-primary btn-block"
+              style="width: 100%"
+            >
               <span class="btn-icon">📦</span> Exportar .ASM (ZIP)
             </button>
-            <button id="btn-import-trigger" class="btn btn-secondary btn-block" style="width: 100%;">
+            <button
+              id="btn-import-trigger"
+              class="btn btn-secondary btn-block"
+              style="width: 100%"
+            >
               <span class="btn-icon">📥</span> Importar .ASM (ZIP)
             </button>
-            <input type="file" id="import-file-input" accept=".zip" style="display: none;">
+            <button
+              id="btn-import-gif-trigger"
+              class="btn btn-secondary btn-block"
+              style="width: 100%"
+            >
+              <span class="btn-icon">🖼️</span> Importar GIF animado
+            </button>
+            <input
+              type="file"
+              id="import-file-input"
+              accept=".zip"
+              style="display: none"
+            />
+            <input
+              type="file"
+              id="gif-file-input"
+              accept=".gif"
+              style="display: none"
+            />
           </div>
         </aside>
       </div>
     </div>
+
+    <!-- Modal para Importación de GIF Animado -->
+    <div id="gif-import-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="gif-modal-title">Configuración de Importación de GIF</h3>
+          <button id="btn-close-gif-modal" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-info-panel">
+            <div class="modal-info-title">Detalles del Archivo</div>
+            <div id="gif-info-details" class="modal-info-text">Analizando archivo...</div>
+          </div>
+          
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-scaling">Escalado / Tamaño</label>
+              <select id="gif-scaling">
+                <option value="center-fit" selected>Ajustar a 320x200 (Proporcional)</option>
+                <option value="stretch">Estirar a 320x200 (Llenar pantalla)</option>
+                <option value="none">Mantener tamaño original (1:1)</option>
+                <option value="factor">Multiplicador de escala</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="gif-scale-factor">Factor de escala</label>
+              <input type="number" id="gif-scale-factor" value="1" min="1" max="10" step="1" />
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-offset-mode">Alineación / Posición</label>
+              <select id="gif-offset-mode">
+                <option value="center" selected>Centrado automáticamente</option>
+                <option value="custom">Desplazamiento personalizado (X, Y)</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <div class="modal-row" style="gap: 6px;">
+                <div class="modal-field">
+                  <label for="gif-offset-x" style="font-size: 0.75rem; color: var(--text-muted);">Offset X</label>
+                  <input type="number" id="gif-offset-x" value="0" />
+                </div>
+                <div class="modal-field">
+                  <label for="gif-offset-y" style="font-size: 0.75rem; color: var(--text-muted);">Offset Y</label>
+                  <input type="number" id="gif-offset-y" value="0" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-optimization">Formato de importación</label>
+              <select id="gif-optimization">
+                <option value="bitmap" selected>Bitmap VGA 320×200 (Recomendado — 1 .asm por frame)</option>
+              </select>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Los GIFs se guardan como imagen completa. La exportación genera datos DB + dibujar.asm compartido.</span>
+            </div>
+            <div class="modal-field">
+              <label for="gif-import-mode">Acción de importación</label>
+              <select id="gif-import-mode">
+                <option value="replace" selected>Reemplazar fotogramas existentes</option>
+                <option value="append">Añadir al final de la secuencia</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-field">
+            <label for="gif-max-frames">Límite de fotogramas a importar</label>
+            <input type="number" id="gif-max-frames" value="0" min="0" title="0 para importar todos los fotogramas del GIF" />
+            <span style="font-size: 0.75rem; color: var(--text-muted);">0 = Importar todos los fotogramas. Recomendado: &lt;= 24 para evitar límites de TASM.</span>
+          </div>
+
+          <div class="modal-field" style="flex-direction: row; gap: 8px; align-items: center; margin-top: 4px;">
+            <input type="checkbox" id="gif-ignore-background" checked />
+            <label for="gif-ignore-background" style="font-weight: normal; cursor: pointer; user-select: none;">Ignorar píxeles transparentes del GIF</label>
+          </div>
+
+          <div class="modal-row" style="margin-top: 4px;">
+            <div class="modal-field">
+              <label for="gif-ignore-color-mode">Color VGA a ignorar (adicional)</label>
+              <select id="gif-ignore-color-mode">
+                <option value="none" selected>Ninguno</option>
+                <option value="index0">Índice 0 (Negro - Recomendado para reducir tamaño)</option>
+                <option value="custom">Índice personalizado</option>
+              </select>
+            </div>
+            <div class="modal-field" id="gif-custom-ignore-container" style="display: none;">
+              <label for="gif-ignore-color-index">Índice de color VGA (0-255)</label>
+              <input type="number" id="gif-ignore-color-index" value="0" min="0" max="255" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-gif-import" class="btn btn-secondary">Cancelar</button>
+          <button id="btn-confirm-gif-import" class="btn btn-primary">Importar Fotogramas</button>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
