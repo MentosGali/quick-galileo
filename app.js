@@ -3184,61 +3184,21 @@ function generateLinkResponse(linkObjects) {
  *   Orquesta.asm  — orquestador principal
  */
 async function exportASM() {
+  // Construir lista de capas para validar: [Fondo, Frame1, Frame2, ...]
   const allLayers = [backgroundLayer, ...frames];
-<<<<<<< HEAD
-  const hasContent = allLayers.some((layer) => layerHasContent(layer));
-=======
   const totalRects = allLayers.reduce(
     (a, l) => a + l.rectangles.length + (l.sprites || []).length,
     0,
   );
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
-  if (!hasContent) {
+  if (totalRects === 0) {
     alert("No hay datos que exportar. Dibuja algo primero.");
     return;
   }
 
+  // Generar archivos
   const files = {};
-  const compileOrder = ["dibujar.asm"];
-  const linkObjects = ["dibujar.obj"];
-  let usesBitmap = false;
 
-<<<<<<< HEAD
-  files["dibujar.asm"] = generateDibujarASM();
-
-  const fondoExport = generateLayerASMExport(
-    "fondo",
-    backgroundLayer.rectangles,
-    backgroundLayer.sprites,
-    {
-      bitmap: backgroundLayer.bitmap || null,
-      mode: "fondo",
-    },
-  );
-  Object.assign(files, fondoExport.files);
-  compileOrder.push(...fondoExport.compileOrder);
-  linkObjects.push(...fondoExport.linkObjects);
-  if (backgroundLayer.bitmap || fondoExport.files["fondo.asm"]?.includes("_IMG")) {
-    usesBitmap = true;
-  }
-
-  frames.forEach((frame, i) => {
-    const procName = `F${i + 1}`;
-    const frameExport = generateLayerASMExport(
-      procName,
-      frame.rectangles,
-      frame.sprites || [],
-      {
-        bitmap: frame.bitmap || null,
-        mode: "frame",
-      },
-    );
-    Object.assign(files, frameExport.files);
-    compileOrder.push(...frameExport.compileOrder);
-    linkObjects.push(...frameExport.linkObjects);
-    if (frame.bitmap) usesBitmap = true;
-=======
   files["fondo.asm"] = generateFondoASM(
     backgroundLayer.rectangles,
     backgroundLayer.sprites,
@@ -3251,19 +3211,21 @@ async function exportASM() {
       frame.rectangles,
       frame.sprites || [],
     );
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
+
+  // Construir orden de compilación y lista de objetos para el enlazador
+  const compileOrder = ["fondo.asm"];
+  const linkObjects = ["fondo.obj"];
+  frames.forEach((_, i) => {
+    compileOrder.push(`F${i + 1}.asm`);
+    linkObjects.push(`F${i + 1}.obj`);
+  });
   compileOrder.push("Orquesta.asm");
+
   files["build.bat"] = generateBuildBAT(compileOrder);
   files["link.rsp"] = generateLinkResponse(linkObjects);
-
-  if (usesBitmap) {
-    console.info(
-      "Exportación en modo bitmap: 1 .asm por frame + dibujar.asm compartido.",
-    );
-  }
 
   // Intentar ZIP con JSZip
   if (typeof JSZip !== "undefined") {
@@ -3698,10 +3660,9 @@ async function processSelectedGIF() {
   const maxFramesInput = document.getElementById("gif-max-frames");
   const maxFramesLimit = parseInt(maxFramesInput.value, 10) || 0;
   const ignoreTransparent = document.getElementById("gif-ignore-background").checked;
-<<<<<<< HEAD
-  const ignoreColorMode = document.getElementById("gif-ignore-color-mode").value;
+  const ignoreColorMode = document.getElementById("gif-ignore-color-mode")?.value || "none";
   const ignoreColorCustom = parseInt(
-    document.getElementById("gif-ignore-color-index").value,
+    document.getElementById("gif-ignore-color-index")?.value || "0",
     10,
   );
   let ignoreColorIndex = null;
@@ -3710,8 +3671,6 @@ async function processSelectedGIF() {
   } else if (ignoreColorMode === "custom") {
     ignoreColorIndex = Number.isFinite(ignoreColorCustom) ? ignoreColorCustom : 0;
   }
-=======
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
   if (gifImportModal) {
     gifImportModal.classList.remove("active");
@@ -3801,16 +3760,6 @@ async function processSelectedGIF() {
     vgaCtx.drawImage(tempCanvas, 0, 0, currentGifInfo.width, currentGifInfo.height, dx, dy, sw, sh);
 
     const vgaImgData = vgaCtx.getImageData(0, 0, targetWidth, targetHeight);
-<<<<<<< HEAD
-
-    const frameBitmap = imageDataToBitmap(
-      vgaImgData.data,
-      targetWidth,
-      targetHeight,
-      getCachedClosestVGAColor,
-      { ignoreTransparent, ignoreColorIndex, fillIndex: BITMAP_SKIP_INDEX },
-    );
-=======
     const data = vgaImgData.data;
 
     const frameRectangles = [];
@@ -3833,7 +3782,8 @@ async function processSelectedGIF() {
             const a = data[idx + 3];
 
             const isTransparent = ignoreTransparent && (a < 128);
-            if (!isTransparent) {
+            const isIgnoredColor = ignoreColorIndex !== null && getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
+            if (!isTransparent && !isIgnoredColor) {
               hasPixel = true;
               mappedColor = getCachedClosestVGAColor(r, g, b);
             }
@@ -3888,7 +3838,8 @@ async function processSelectedGIF() {
           const a = data[idx + 3];
 
           const isTransparent = ignoreTransparent && (a < 128);
-          if (!isTransparent) {
+          const isIgnoredColor = ignoreColorIndex !== null && getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
+          if (!isTransparent && !isIgnoredColor) {
             const mappedColor = getCachedClosestVGAColor(r, g, b);
             frameRectangles.push({
               id: ++rectangleIdCounter,
@@ -3903,21 +3854,13 @@ async function processSelectedGIF() {
         }
       }
     }
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
     const fObj = {
       id: ++frameIdCounter,
       name: `GIF F${fIdx + 1}`,
-<<<<<<< HEAD
-      rectangles: [],
-      sprites: [],
-      bitmap: frameBitmap,
-      visible: true,
-=======
       rectangles: frameRectangles,
       sprites: [],
-      visible: true
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
+      visible: true,
     };
     frames.push(fObj);
     newImportedFrames.push(fObj);
@@ -3929,14 +3872,7 @@ async function processSelectedGIF() {
     switchToBackground();
   }
 
-<<<<<<< HEAD
-  alert(
-    `Importación exitosa: ${framesToImport.length} fotograma(s) como bitmap VGA.\n` +
-      `Al exportar obtendrás 1 F1.asm por frame + dibujar.asm (compilación rápida).`,
-  );
-=======
-  alert(`Importación exitosa. Se han generado ${framesToImport.length} fotogramas compatibles en la secuencia.`);
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
+  alert(`Importación exitosa. Se han generado ${framesToImport.length} fotogramas en la secuencia, compatibles con TASM.`);
 }
 
 /**
