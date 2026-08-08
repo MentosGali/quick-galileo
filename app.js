@@ -3185,7 +3185,14 @@ function generateLinkResponse(linkObjects) {
  */
 async function exportASM() {
   const allLayers = [backgroundLayer, ...frames];
+<<<<<<< HEAD
   const hasContent = allLayers.some((layer) => layerHasContent(layer));
+=======
+  const totalRects = allLayers.reduce(
+    (a, l) => a + l.rectangles.length + (l.sprites || []).length,
+    0,
+  );
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
   if (!hasContent) {
     alert("No hay datos que exportar. Dibuja algo primero.");
@@ -3197,6 +3204,7 @@ async function exportASM() {
   const linkObjects = ["dibujar.obj"];
   let usesBitmap = false;
 
+<<<<<<< HEAD
   files["dibujar.asm"] = generateDibujarASM();
 
   const fondoExport = generateLayerASMExport(
@@ -3230,6 +3238,20 @@ async function exportASM() {
     compileOrder.push(...frameExport.compileOrder);
     linkObjects.push(...frameExport.linkObjects);
     if (frame.bitmap) usesBitmap = true;
+=======
+  files["fondo.asm"] = generateFondoASM(
+    backgroundLayer.rectangles,
+    backgroundLayer.sprites,
+  );
+
+  frames.forEach((frame, i) => {
+    const procName = `F${i + 1}`;
+    files[`${procName}.asm`] = generateFrameASM(
+      procName,
+      frame.rectangles,
+      frame.sprites || [],
+    );
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
@@ -3676,6 +3698,7 @@ async function processSelectedGIF() {
   const maxFramesInput = document.getElementById("gif-max-frames");
   const maxFramesLimit = parseInt(maxFramesInput.value, 10) || 0;
   const ignoreTransparent = document.getElementById("gif-ignore-background").checked;
+<<<<<<< HEAD
   const ignoreColorMode = document.getElementById("gif-ignore-color-mode").value;
   const ignoreColorCustom = parseInt(
     document.getElementById("gif-ignore-color-index").value,
@@ -3687,6 +3710,8 @@ async function processSelectedGIF() {
   } else if (ignoreColorMode === "custom") {
     ignoreColorIndex = Number.isFinite(ignoreColorCustom) ? ignoreColorCustom : 0;
   }
+=======
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
   if (gifImportModal) {
     gifImportModal.classList.remove("active");
@@ -3776,6 +3801,7 @@ async function processSelectedGIF() {
     vgaCtx.drawImage(tempCanvas, 0, 0, currentGifInfo.width, currentGifInfo.height, dx, dy, sw, sh);
 
     const vgaImgData = vgaCtx.getImageData(0, 0, targetWidth, targetHeight);
+<<<<<<< HEAD
 
     const frameBitmap = imageDataToBitmap(
       vgaImgData.data,
@@ -3784,14 +3810,114 @@ async function processSelectedGIF() {
       getCachedClosestVGAColor,
       { ignoreTransparent, ignoreColorIndex, fillIndex: BITMAP_SKIP_INDEX },
     );
+=======
+    const data = vgaImgData.data;
+
+    const frameRectangles = [];
+
+    if (optimization === "row-span") {
+      // Optimización: Scanlines con DRAW_REGION
+      for (let y = 0; y < targetHeight; y++) {
+        let startX = -1;
+        let currentColorIndex = -1;
+
+        for (let x = 0; x <= targetWidth; x++) {
+          let hasPixel = false;
+          let mappedColor = -1;
+
+          if (x < targetWidth) {
+            const idx = (y * targetWidth + x) * 4;
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const a = data[idx + 3];
+
+            const isTransparent = ignoreTransparent && (a < 128);
+            if (!isTransparent) {
+              hasPixel = true;
+              mappedColor = getCachedClosestVGAColor(r, g, b);
+            }
+          }
+
+          if (currentColorIndex !== -1) {
+            if (x === targetWidth || !hasPixel || mappedColor !== currentColorIndex) {
+              const length = x - startX;
+              if (length === 1) {
+                frameRectangles.push({
+                  id: ++rectangleIdCounter,
+                  type: "pixel",
+                  x1: startX,
+                  y1: y,
+                  x2: startX,
+                  y2: y,
+                  colorIndex: currentColorIndex
+                });
+              } else {
+                frameRectangles.push({
+                  id: ++rectangleIdCounter,
+                  type: "rect",
+                  x1: startX,
+                  y1: y,
+                  x2: x - 1,
+                  y2: y,
+                  colorIndex: currentColorIndex
+                });
+              }
+              if (x < targetWidth && hasPixel) {
+                startX = x;
+                currentColorIndex = mappedColor;
+              } else {
+                startX = -1;
+                currentColorIndex = -1;
+              }
+            }
+          } else if (x < targetWidth && hasPixel) {
+            startX = x;
+            currentColorIndex = mappedColor;
+          }
+        }
+      }
+    } else {
+      // Sin optimización: PINTAR_PIXEL para cada uno
+      for (let y = 0; y < targetHeight; y++) {
+        for (let x = 0; x < targetWidth; x++) {
+          const idx = (y * targetWidth + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+
+          const isTransparent = ignoreTransparent && (a < 128);
+          if (!isTransparent) {
+            const mappedColor = getCachedClosestVGAColor(r, g, b);
+            frameRectangles.push({
+              id: ++rectangleIdCounter,
+              type: "pixel",
+              x1: x,
+              y1: y,
+              x2: x,
+              y2: y,
+              colorIndex: mappedColor
+            });
+          }
+        }
+      }
+    }
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 
     const fObj = {
       id: ++frameIdCounter,
       name: `GIF F${fIdx + 1}`,
+<<<<<<< HEAD
       rectangles: [],
       sprites: [],
       bitmap: frameBitmap,
       visible: true,
+=======
+      rectangles: frameRectangles,
+      sprites: [],
+      visible: true
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
     };
     frames.push(fObj);
     newImportedFrames.push(fObj);
@@ -3803,10 +3929,14 @@ async function processSelectedGIF() {
     switchToBackground();
   }
 
+<<<<<<< HEAD
   alert(
     `Importación exitosa: ${framesToImport.length} fotograma(s) como bitmap VGA.\n` +
       `Al exportar obtendrás 1 F1.asm por frame + dibujar.asm (compilación rápida).`,
   );
+=======
+  alert(`Importación exitosa. Se han generado ${framesToImport.length} fotogramas compatibles en la secuencia.`);
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
 }
 
 /**

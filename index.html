@@ -615,11 +615,19 @@
 
           <div class="modal-row">
             <div class="modal-field">
+<<<<<<< HEAD
               <label for="gif-optimization">Formato de importación</label>
               <select id="gif-optimization">
                 <option value="bitmap" selected>Bitmap VGA 320×200 (Recomendado — 1 .asm por frame)</option>
               </select>
               <span style="font-size: 0.75rem; color: var(--text-muted);">Los GIFs se guardan como imagen completa. La exportación genera datos DB + dibujar.asm compartido.</span>
+=======
+              <label for="gif-optimization">Optimización TASM 16 bits</label>
+              <select id="gif-optimization">
+                <option value="row-span" selected>DRAW_REGION (Líneas horizontales - Recomendado)</option>
+                <option value="pixel">PINTAR_PIXEL (Píxel por píxel - Muy pesado)</option>
+              </select>
+>>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
             </div>
             <div class="modal-field">
               <label for="gif-import-mode">Acción de importación</label>
