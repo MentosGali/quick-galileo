@@ -685,11 +685,16 @@ function setupEventListeners() {
     updateOffsetState();
   }
 
-  const gifIgnoreColorModeSelect = document.getElementById("gif-ignore-color-mode");
-  const gifCustomIgnoreContainer = document.getElementById("gif-custom-ignore-container");
+  const gifIgnoreColorModeSelect = document.getElementById(
+    "gif-ignore-color-mode",
+  );
+  const gifCustomIgnoreContainer = document.getElementById(
+    "gif-custom-ignore-container",
+  );
   if (gifIgnoreColorModeSelect && gifCustomIgnoreContainer) {
     const updateIgnoreColorState = () => {
-      gifCustomIgnoreContainer.style.display = gifIgnoreColorModeSelect.value === "custom" ? "block" : "none";
+      gifCustomIgnoreContainer.style.display =
+        gifIgnoreColorModeSelect.value === "custom" ? "block" : "none";
     };
     gifIgnoreColorModeSelect.addEventListener("change", updateIgnoreColorState);
     updateIgnoreColorState();
@@ -1935,25 +1940,25 @@ function draw() {
         drawBitmap(frame.bitmap, opacity, mixBlue);
       } else {
         frame.rectangles.forEach((rect) => {
-        // Tinte azul para onion skin
-        const [r, g, b] = VGA_PALETTE[rect.colorIndex];
-        const nr = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
-        const ng = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
-        const nb = Math.round(b * (1 - mixBlue) + 200 * mixBlue);
-        ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
-        ctx.globalAlpha = opacity;
-        const minX = Math.min(rect.x1, rect.x2),
-          maxX = Math.max(rect.x1, rect.x2);
-        const minY = Math.min(rect.y1, rect.y2),
-          maxY = Math.max(rect.y1, rect.y2);
-        ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
-      });
-
-      if (frame.sprites) {
-        frame.sprites.forEach((sprite) => {
-          drawSprite(sprite, opacity, mixBlue, false);
+          // Tinte azul para onion skin
+          const [r, g, b] = VGA_PALETTE[rect.colorIndex];
+          const nr = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
+          const ng = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
+          const nb = Math.round(b * (1 - mixBlue) + 200 * mixBlue);
+          ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+          ctx.globalAlpha = opacity;
+          const minX = Math.min(rect.x1, rect.x2),
+            maxX = Math.max(rect.x1, rect.x2);
+          const minY = Math.min(rect.y1, rect.y2),
+            maxY = Math.max(rect.y1, rect.y2);
+          ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
         });
-      }
+
+        if (frame.sprites) {
+          frame.sprites.forEach((sprite) => {
+            drawSprite(sprite, opacity, mixBlue, false);
+          });
+        }
       }
     }
   });
@@ -2277,13 +2282,7 @@ function layerHasContent(layer) {
 }
 
 /** Pinta rects/sprites en un buffer 320×200 de índices VGA. */
-function rasterizeLayerToBitmap(
-  rects,
-  sprites,
-  width,
-  height,
-  fillIndex = 0,
-) {
+function rasterizeLayerToBitmap(rects, sprites, width, height, fillIndex = 0) {
   const bitmap = new Uint8Array(width * height);
   bitmap.fill(fillIndex);
 
@@ -2313,13 +2312,7 @@ function rasterizeLayerToBitmap(
 /**
  * Convierte ImageData RGBA a bitmap VGA (solo filas horizontales en ASM).
  */
-function imageDataToBitmap(
-  data,
-  width,
-  height,
-  getColorIndex,
-  options = {},
-) {
+function imageDataToBitmap(data, width, height, getColorIndex, options = {}) {
   const {
     ignoreTransparent = true,
     ignoreColorIndex = null,
@@ -2339,7 +2332,8 @@ function imageDataToBitmap(
       if (isTransparent) continue;
 
       const mappedColor = getColorIndex(r, g, b);
-      if (ignoreColorIndex !== null && mappedColor === ignoreColorIndex) continue;
+      if (ignoreColorIndex !== null && mappedColor === ignoreColorIndex)
+        continue;
       bitmap[y * width + x] = mappedColor;
     }
   }
@@ -2930,26 +2924,64 @@ function generateDibujarASM() {
 /**
  * Genera un .asm compacto con bitmap en .DATA (1 archivo por capa).
  */
-function generateBitmapASM(procName, bitmap, mode = "frame") {
-  const dataRows = formatBitmapAsDBRows(
-    bitmap,
-    CANVAS_WIDTH,
-    CANVAS_HEIGHT,
-  );
-  const drawCall =
+function generateBitmapASM(
+  procName,
+  bitmap,
+  mode = "frame",
+  width = CANVAS_WIDTH,
+  height = CANVAS_HEIGHT,
+) {
+  const dataRows = formatBitmapAsDBRows(bitmap, width, height);
+  const pixelCount = width * height;
+
+  const drawBody =
     mode === "fondo"
-      ? "    CALL DIBUJAR_FONDO"
+      ? [
+          "    PUSH DS",
+          "    PUSH BX",
+          "    MOV AX,@DATA",
+          "    MOV DS,AX",
+          "    MOV AX,0A000H",
+          "    MOV ES,AX",
+          "    CLD",
+          "    XOR DI,DI",
+          `    MOV CX,${pixelCount}`,
+          "@@copy_loop:",
+          "    LODSB",
+          "    MOV ES:[DI],AL",
+          "    INC DI",
+          "    LOOP @@copy_loop",
+          "    POP BX",
+          "    POP DS",
+          "    RET",
+        ].join("\n")
       : [
-          `    MOV BL, ${BITMAP_SKIP_INDEX}`,
-          "    CALL DIBUJAR_FRAME",
+          "    PUSH DS",
+          "    PUSH BX",
+          "    MOV AX,@DATA",
+          "    MOV DS,AX",
+          "    MOV AX,0A000H",
+          "    MOV ES,AX",
+          "    CLD",
+          "    XOR DI,DI",
+          `    MOV CX,${pixelCount}`,
+          `    MOV BL,${BITMAP_SKIP_INDEX}`,
+          "@@copy_loop:",
+          "    LODSB",
+          "    CMP AL,BL",
+          "    JE @@skip_pixel",
+          "    MOV ES:[DI],AL",
+          "@@skip_pixel:",
+          "    INC DI",
+          "    LOOP @@copy_loop",
+          "    POP BX",
+          "    POP DS",
+          "    RET",
         ].join("\n");
 
   return [
     "INCLUDE LIBRO.LIB",
     "INCLUDE M.LIB",
-    "",
-    "EXTRN DIBUJAR_FONDO:FAR",
-    "EXTRN DIBUJAR_FRAME:FAR",
     "",
     ".MODEL LARGE",
     "",
@@ -2965,7 +2997,7 @@ function generateBitmapASM(procName, bitmap, mode = "frame") {
     "MOV AX,@DATA",
     "MOV DS,AX",
     `LEA SI, ${procName}_IMG`,
-    drawCall,
+    drawBody,
     "",
     "RET",
     `${procName} ENDP`,
@@ -3018,15 +3050,17 @@ function generateLayerASMExport(baseName, rects, sprites, options = {}) {
   const safeSprites = sprites || [];
   let bitmap = options.bitmap || null;
   const layerMode = options.mode || (baseName === "fondo" ? "fondo" : "frame");
+  const bitmapWidth = options.width || CANVAS_WIDTH;
+  const bitmapHeight = options.height || CANVAS_HEIGHT;
 
   if (!bitmap) {
     const totalCommands = countDrawCommands(safeRects, safeSprites);
-    if (totalCommands > BITMAP_EXPORT_THRESHOLD) {
+    if (options.forceBitmap || totalCommands > BITMAP_EXPORT_THRESHOLD) {
       bitmap = rasterizeLayerToBitmap(
         safeRects,
         safeSprites,
-        CANVAS_WIDTH,
-        CANVAS_HEIGHT,
+        bitmapWidth,
+        bitmapHeight,
         layerMode === "fondo" ? 0 : BITMAP_SKIP_INDEX,
       );
     }
@@ -3035,7 +3069,13 @@ function generateLayerASMExport(baseName, rects, sprites, options = {}) {
   const filename = `${baseName}.asm`;
 
   if (bitmap) {
-    result.files[filename] = generateBitmapASM(baseName, bitmap, layerMode);
+    result.files[filename] = generateBitmapASM(
+      baseName,
+      bitmap,
+      layerMode,
+      bitmapWidth,
+      bitmapHeight,
+    );
   } else {
     result.files[filename] = generateSimpleProcASM(
       baseName,
@@ -3166,7 +3206,10 @@ function generateBuildBAT(compileOrder) {
 }
 
 function generateLinkResponse(linkObjects) {
-  const objects = ["Orquesta.obj", ...linkObjects.filter((obj) => obj !== "Orquesta.obj")];
+  const objects = [
+    "Orquesta.obj",
+    ...linkObjects.filter((obj) => obj !== "Orquesta.obj"),
+  ];
 
   return (
     objects
@@ -3199,18 +3242,31 @@ async function exportASM() {
   // Generar archivos
   const files = {};
 
-  files["fondo.asm"] = generateFondoASM(
+  files["fondo.asm"] = generateLayerASMExport(
+    "fondo",
     backgroundLayer.rectangles,
     backgroundLayer.sprites,
-  );
+    {
+      mode: "fondo",
+      width: backgroundLayer.canvasWidth || CANVAS_WIDTH,
+      height: backgroundLayer.canvasHeight || CANVAS_HEIGHT,
+      forceBitmap: false,
+    },
+  ).files["fondo.asm"];
 
   frames.forEach((frame, i) => {
     const procName = `F${i + 1}`;
-    files[`${procName}.asm`] = generateFrameASM(
+    files[`${procName}.asm`] = generateLayerASMExport(
       procName,
       frame.rectangles,
       frame.sprites || [],
-    );
+      {
+        mode: "frame",
+        width: frame.canvasWidth || CANVAS_WIDTH,
+        height: frame.canvasHeight || CANVAS_HEIGHT,
+        forceBitmap: frame.exportAsBitmap === true || frame.source === "gif",
+      },
+    ).files[`${procName}.asm`];
   });
 
   files["Orquesta.asm"] = generateOrquestaASM(frames.length);
@@ -3511,7 +3567,7 @@ let currentGifInfo = {
   frames: [],
   width: 0,
   height: 0,
-  filename: ""
+  filename: "",
 };
 
 /**
@@ -3541,7 +3597,7 @@ function reconstructGIF(gifFrames, gifWidth, gifHeight) {
           prevFrame.dims.left,
           prevFrame.dims.top,
           prevFrame.dims.width,
-          prevFrame.dims.height
+          prevFrame.dims.height,
         );
       } else if (prevFrame.disposalType === 3) {
         // Restaurar al estado previo
@@ -3560,7 +3616,10 @@ function reconstructGIF(gifFrames, gifWidth, gifHeight) {
     patchCanvas.width = frame.dims.width;
     patchCanvas.height = frame.dims.height;
     const patchCtx = patchCanvas.getContext("2d");
-    const imgData = patchCtx.createImageData(frame.dims.width, frame.dims.height);
+    const imgData = patchCtx.createImageData(
+      frame.dims.width,
+      frame.dims.height,
+    );
     imgData.data.set(frame.patch);
     patchCtx.putImageData(imgData, 0, 0);
 
@@ -3583,16 +3642,41 @@ async function handleImportGIFFile(e) {
   const gifImportModal = document.getElementById("gif-import-modal");
   const gifInfoDetails = document.getElementById("gif-info-details");
   const btnConfirm = document.getElementById("btn-confirm-gif-import");
+  const scaleRow = document
+    .getElementById("gif-scale-factor")
+    ?.closest(".modal-row");
+  const detailLevelExisting = document.getElementById("gif-detail-level");
 
   if (!gifImportModal || !gifInfoDetails) return;
 
+  if (!detailLevelExisting && scaleRow && scaleRow.nextElementSibling) {
+    const detailRow = document.createElement("div");
+    detailRow.className = "modal-row";
+    detailRow.innerHTML = `
+      <div class="modal-field">
+        <label for="gif-detail-level">Nivel de detalle ASM</label>
+        <select id="gif-detail-level">
+          <option value="320x200">Alto: 320x200</option>
+          <option value="160x100" selected>Medio: 160x100 (Recomendado)</option>
+          <option value="80x50">Bajo: 80x50 (Muy liviano)</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <span style="display:block; margin-top: 1.5rem; font-size: 0.75rem; color: var(--text-muted);">Menos detalle = menos pixeles = ASM mas liviano para TASM/DOSBox.</span>
+      </div>
+    `;
+    scaleRow.insertAdjacentElement("afterend", detailRow);
+  }
+
   try {
-    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Cargando archivo y dependencias...</span>';
+    gifInfoDetails.innerHTML =
+      '<span style="color: var(--accent);">Cargando archivo y dependencias...</span>';
     gifImportModal.classList.add("active");
     btnConfirm.disabled = true;
 
     // Importación dinámica de la librería de descompresión de GIF
-    const { parseGIF, decompressFrames } = await import("https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm");
+    const { parseGIF, decompressFrames } =
+      await import("https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm");
 
     // Leer el archivo como ArrayBuffer
     const arrayBuffer = await new Promise((resolve, reject) => {
@@ -3602,19 +3686,22 @@ async function handleImportGIFFile(e) {
       reader.readAsArrayBuffer(file);
     });
 
-    gifInfoDetails.innerHTML = '<span style="color: var(--accent);">Decodificando fotogramas de la animación...</span>';
+    gifInfoDetails.innerHTML =
+      '<span style="color: var(--accent);">Decodificando fotogramas de la animación...</span>';
     const parsedGif = parseGIF(arrayBuffer);
     const decompressed = decompressFrames(parsedGif, true);
 
     if (!decompressed || decompressed.length === 0) {
-      throw new Error("No se encontraron fotogramas válidos en el archivo GIF.");
+      throw new Error(
+        "No se encontraron fotogramas válidos en el archivo GIF.",
+      );
     }
 
     currentGifInfo = {
       frames: decompressed,
       width: decompressed[0].dims.width,
       height: decompressed[0].dims.height,
-      filename: file.name
+      filename: file.name,
     };
 
     gifInfoDetails.innerHTML = `
@@ -3655,12 +3742,17 @@ async function processSelectedGIF() {
   const offsetYInput = document.getElementById("gif-offset-y");
   const customOffsetX = parseInt(offsetXInput.value, 10) || 0;
   const customOffsetY = parseInt(offsetYInput.value, 10) || 0;
+  const detailLevel =
+    document.getElementById("gif-detail-level")?.value || "160x100";
   const optimization = document.getElementById("gif-optimization").value;
   const importMode = document.getElementById("gif-import-mode").value;
   const maxFramesInput = document.getElementById("gif-max-frames");
   const maxFramesLimit = parseInt(maxFramesInput.value, 10) || 0;
-  const ignoreTransparent = document.getElementById("gif-ignore-background").checked;
-  const ignoreColorMode = document.getElementById("gif-ignore-color-mode")?.value || "none";
+  const ignoreTransparent = document.getElementById(
+    "gif-ignore-background",
+  ).checked;
+  const ignoreColorMode =
+    document.getElementById("gif-ignore-color-mode")?.value || "none";
   const ignoreColorCustom = parseInt(
     document.getElementById("gif-ignore-color-index")?.value || "0",
     10,
@@ -3669,15 +3761,28 @@ async function processSelectedGIF() {
   if (ignoreColorMode === "index0") {
     ignoreColorIndex = 0;
   } else if (ignoreColorMode === "custom") {
-    ignoreColorIndex = Number.isFinite(ignoreColorCustom) ? ignoreColorCustom : 0;
+    ignoreColorIndex = Number.isFinite(ignoreColorCustom)
+      ? ignoreColorCustom
+      : 0;
   }
 
   if (gifImportModal) {
     gifImportModal.classList.remove("active");
   }
 
+  const detailSizeMap = {
+    "320x200": { width: 320, height: 200 },
+    "160x100": { width: 160, height: 100 },
+    "80x50": { width: 80, height: 50 },
+  };
+  const detailSize = detailSizeMap[detailLevel] || detailSizeMap["160x100"];
+
   // Reconstruir fotogramas completos
-  const renderedFrames = reconstructGIF(currentGifInfo.frames, currentGifInfo.width, currentGifInfo.height);
+  const renderedFrames = reconstructGIF(
+    currentGifInfo.frames,
+    currentGifInfo.width,
+    currentGifInfo.height,
+  );
 
   let framesToImport = renderedFrames;
   if (maxFramesLimit > 0 && maxFramesLimit < renderedFrames.length) {
@@ -3711,8 +3816,8 @@ async function processSelectedGIF() {
     return closestIndex;
   }
 
-  const targetWidth = 320;
-  const targetHeight = 200;
+  const targetWidth = detailSize.width;
+  const targetHeight = detailSize.height;
   const newImportedFrames = [];
 
   for (let fIdx = 0; fIdx < framesToImport.length; fIdx++) {
@@ -3735,7 +3840,10 @@ async function processSelectedGIF() {
     let sh = currentGifInfo.height;
 
     if (scaling === "center-fit") {
-      const scale = Math.min(targetWidth / currentGifInfo.width, targetHeight / currentGifInfo.height);
+      const scale = Math.min(
+        targetWidth / currentGifInfo.width,
+        targetHeight / currentGifInfo.height,
+      );
       sw = currentGifInfo.width * scale;
       sh = currentGifInfo.height * scale;
     } else if (scaling === "stretch") {
@@ -3757,7 +3865,17 @@ async function processSelectedGIF() {
     }
 
     // Dibujar frame redimensionado en el buffer VGA
-    vgaCtx.drawImage(tempCanvas, 0, 0, currentGifInfo.width, currentGifInfo.height, dx, dy, sw, sh);
+    vgaCtx.drawImage(
+      tempCanvas,
+      0,
+      0,
+      currentGifInfo.width,
+      currentGifInfo.height,
+      dx,
+      dy,
+      sw,
+      sh,
+    );
 
     const vgaImgData = vgaCtx.getImageData(0, 0, targetWidth, targetHeight);
     const data = vgaImgData.data;
@@ -3781,8 +3899,10 @@ async function processSelectedGIF() {
             const b = data[idx + 2];
             const a = data[idx + 3];
 
-            const isTransparent = ignoreTransparent && (a < 128);
-            const isIgnoredColor = ignoreColorIndex !== null && getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
+            const isTransparent = ignoreTransparent && a < 128;
+            const isIgnoredColor =
+              ignoreColorIndex !== null &&
+              getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
             if (!isTransparent && !isIgnoredColor) {
               hasPixel = true;
               mappedColor = getCachedClosestVGAColor(r, g, b);
@@ -3790,7 +3910,11 @@ async function processSelectedGIF() {
           }
 
           if (currentColorIndex !== -1) {
-            if (x === targetWidth || !hasPixel || mappedColor !== currentColorIndex) {
+            if (
+              x === targetWidth ||
+              !hasPixel ||
+              mappedColor !== currentColorIndex
+            ) {
               const length = x - startX;
               if (length === 1) {
                 frameRectangles.push({
@@ -3800,7 +3924,7 @@ async function processSelectedGIF() {
                   y1: y,
                   x2: startX,
                   y2: y,
-                  colorIndex: currentColorIndex
+                  colorIndex: currentColorIndex,
                 });
               } else {
                 frameRectangles.push({
@@ -3810,7 +3934,7 @@ async function processSelectedGIF() {
                   y1: y,
                   x2: x - 1,
                   y2: y,
-                  colorIndex: currentColorIndex
+                  colorIndex: currentColorIndex,
                 });
               }
               if (x < targetWidth && hasPixel) {
@@ -3837,8 +3961,10 @@ async function processSelectedGIF() {
           const b = data[idx + 2];
           const a = data[idx + 3];
 
-          const isTransparent = ignoreTransparent && (a < 128);
-          const isIgnoredColor = ignoreColorIndex !== null && getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
+          const isTransparent = ignoreTransparent && a < 128;
+          const isIgnoredColor =
+            ignoreColorIndex !== null &&
+            getCachedClosestVGAColor(r, g, b) === ignoreColorIndex;
           if (!isTransparent && !isIgnoredColor) {
             const mappedColor = getCachedClosestVGAColor(r, g, b);
             frameRectangles.push({
@@ -3848,7 +3974,7 @@ async function processSelectedGIF() {
               y1: y,
               x2: x,
               y2: y,
-              colorIndex: mappedColor
+              colorIndex: mappedColor,
             });
           }
         }
@@ -3860,6 +3986,10 @@ async function processSelectedGIF() {
       name: `GIF F${fIdx + 1}`,
       rectangles: frameRectangles,
       sprites: [],
+      canvasWidth: targetWidth,
+      canvasHeight: targetHeight,
+      exportAsBitmap: true,
+      source: "gif",
       visible: true,
     };
     frames.push(fObj);
@@ -3872,7 +4002,9 @@ async function processSelectedGIF() {
     switchToBackground();
   }
 
-  alert(`Importación exitosa. Se han generado ${framesToImport.length} fotogramas en la secuencia, compatibles con TASM.`);
+  alert(
+    `Importación exitosa. Se han generado ${framesToImport.length} fotogramas en la secuencia, compatibles con TASM.`,
+  );
 }
 
 /**

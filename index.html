@@ -572,22 +572,61 @@
         <div class="modal-body">
           <div class="modal-info-panel">
             <div class="modal-info-title">Detalles del Archivo</div>
-            <div id="gif-info-details" class="modal-info-text">Analizando archivo...</div>
+            <div id="gif-info-details" class="modal-info-text">
+              Analizando archivo...
+            </div>
           </div>
-          
+
           <div class="modal-row">
             <div class="modal-field">
               <label for="gif-scaling">Escalado / Tamaño</label>
               <select id="gif-scaling">
-                <option value="center-fit" selected>Ajustar a 320x200 (Proporcional)</option>
-                <option value="stretch">Estirar a 320x200 (Llenar pantalla)</option>
+                <option value="center-fit" selected>
+                  Ajustar a 320x200 (Proporcional)
+                </option>
+                <option value="stretch">
+                  Estirar a 320x200 (Llenar pantalla)
+                </option>
                 <option value="none">Mantener tamaño original (1:1)</option>
                 <option value="factor">Multiplicador de escala</option>
               </select>
             </div>
             <div class="modal-field">
               <label for="gif-scale-factor">Factor de escala</label>
-              <input type="number" id="gif-scale-factor" value="1" min="1" max="10" step="1" />
+              <input
+                type="number"
+                id="gif-scale-factor"
+                value="1"
+                min="1"
+                max="10"
+                step="1"
+              />
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="gif-detail-level">Nivel de detalle ASM</label>
+              <select id="gif-detail-level">
+                <option value="320x200">Alto: 320x200</option>
+                <option value="160x100" selected>
+                  Medio: 160x100 (Recomendado)
+                </option>
+                <option value="80x50">Bajo: 80x50 (Muy liviano)</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <span
+                style="
+                  display: block;
+                  margin-top: 1.5rem;
+                  font-size: 0.75rem;
+                  color: var(--text-muted);
+                "
+              >
+                Menos detalle = menos pixeles = ASM mas liviano para
+                TASM/DOSBox.
+              </span>
             </div>
           </div>
 
@@ -595,18 +634,30 @@
             <div class="modal-field">
               <label for="gif-offset-mode">Alineación / Posición</label>
               <select id="gif-offset-mode">
-                <option value="center" selected>Centrado automáticamente</option>
-                <option value="custom">Desplazamiento personalizado (X, Y)</option>
+                <option value="center" selected>
+                  Centrado automáticamente
+                </option>
+                <option value="custom">
+                  Desplazamiento personalizado (X, Y)
+                </option>
               </select>
             </div>
             <div class="modal-field">
-              <div class="modal-row" style="gap: 6px;">
+              <div class="modal-row" style="gap: 6px">
                 <div class="modal-field">
-                  <label for="gif-offset-x" style="font-size: 0.75rem; color: var(--text-muted);">Offset X</label>
+                  <label
+                    for="gif-offset-x"
+                    style="font-size: 0.75rem; color: var(--text-muted)"
+                    >Offset X</label
+                  >
                   <input type="number" id="gif-offset-x" value="0" />
                 </div>
                 <div class="modal-field">
-                  <label for="gif-offset-y" style="font-size: 0.75rem; color: var(--text-muted);">Offset Y</label>
+                  <label
+                    for="gif-offset-y"
+                    style="font-size: 0.75rem; color: var(--text-muted)"
+                    >Offset Y</label
+                  >
                   <input type="number" id="gif-offset-y" value="0" />
                 </div>
               </div>
@@ -615,24 +666,22 @@
 
           <div class="modal-row">
             <div class="modal-field">
-<<<<<<< HEAD
-              <label for="gif-optimization">Formato de importación</label>
-              <select id="gif-optimization">
-                <option value="bitmap" selected>Bitmap VGA 320×200 (Recomendado — 1 .asm por frame)</option>
-              </select>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">Los GIFs se guardan como imagen completa. La exportación genera datos DB + dibujar.asm compartido.</span>
-=======
               <label for="gif-optimization">Optimización TASM 16 bits</label>
               <select id="gif-optimization">
-                <option value="row-span" selected>DRAW_REGION (Líneas horizontales - Recomendado)</option>
-                <option value="pixel">PINTAR_PIXEL (Píxel por píxel - Muy pesado)</option>
+                <option value="row-span" selected>
+                  DRAW_REGION (Líneas horizontales - Recomendado)
+                </option>
+                <option value="pixel">
+                  PINTAR_PIXEL (Píxel por píxel - Muy pesado)
+                </option>
               </select>
->>>>>>> 39d677442f048a95e2dee2b86b40f0a14b1efb65
             </div>
             <div class="modal-field">
               <label for="gif-import-mode">Acción de importación</label>
               <select id="gif-import-mode">
-                <option value="replace" selected>Reemplazar fotogramas existentes</option>
+                <option value="replace" selected>
+                  Reemplazar fotogramas existentes
+                </option>
                 <option value="append">Añadir al final de la secuencia</option>
               </select>
             </div>
@@ -640,33 +689,74 @@
 
           <div class="modal-field">
             <label for="gif-max-frames">Límite de fotogramas a importar</label>
-            <input type="number" id="gif-max-frames" value="0" min="0" title="0 para importar todos los fotogramas del GIF" />
-            <span style="font-size: 0.75rem; color: var(--text-muted);">0 = Importar todos los fotogramas. Recomendado: &lt;= 24 para evitar límites de TASM.</span>
+            <input
+              type="number"
+              id="gif-max-frames"
+              value="0"
+              min="0"
+              title="0 para importar todos los fotogramas del GIF"
+            />
+            <span style="font-size: 0.75rem; color: var(--text-muted)"
+              >0 = Importar todos los fotogramas. Recomendado: &lt;= 24 para
+              evitar límites de TASM.</span
+            >
           </div>
 
-          <div class="modal-field" style="flex-direction: row; gap: 8px; align-items: center; margin-top: 4px;">
+          <div
+            class="modal-field"
+            style="
+              flex-direction: row;
+              gap: 8px;
+              align-items: center;
+              margin-top: 4px;
+            "
+          >
             <input type="checkbox" id="gif-ignore-background" checked />
-            <label for="gif-ignore-background" style="font-weight: normal; cursor: pointer; user-select: none;">Ignorar píxeles transparentes del GIF</label>
+            <label
+              for="gif-ignore-background"
+              style="font-weight: normal; cursor: pointer; user-select: none"
+              >Ignorar píxeles transparentes del GIF</label
+            >
           </div>
 
-          <div class="modal-row" style="margin-top: 4px;">
+          <div class="modal-row" style="margin-top: 4px">
             <div class="modal-field">
-              <label for="gif-ignore-color-mode">Color VGA a ignorar (adicional)</label>
+              <label for="gif-ignore-color-mode"
+                >Color VGA a ignorar (adicional)</label
+              >
               <select id="gif-ignore-color-mode">
                 <option value="none" selected>Ninguno</option>
-                <option value="index0">Índice 0 (Negro - Recomendado para reducir tamaño)</option>
+                <option value="index0">
+                  Índice 0 (Negro - Recomendado para reducir tamaño)
+                </option>
                 <option value="custom">Índice personalizado</option>
               </select>
             </div>
-            <div class="modal-field" id="gif-custom-ignore-container" style="display: none;">
-              <label for="gif-ignore-color-index">Índice de color VGA (0-255)</label>
-              <input type="number" id="gif-ignore-color-index" value="0" min="0" max="255" />
+            <div
+              class="modal-field"
+              id="gif-custom-ignore-container"
+              style="display: none"
+            >
+              <label for="gif-ignore-color-index"
+                >Índice de color VGA (0-255)</label
+              >
+              <input
+                type="number"
+                id="gif-ignore-color-index"
+                value="0"
+                min="0"
+                max="255"
+              />
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button id="btn-cancel-gif-import" class="btn btn-secondary">Cancelar</button>
-          <button id="btn-confirm-gif-import" class="btn btn-primary">Importar Fotogramas</button>
+          <button id="btn-cancel-gif-import" class="btn btn-secondary">
+            Cancelar
+          </button>
+          <button id="btn-confirm-gif-import" class="btn btn-primary">
+            Importar Fotogramas
+          </button>
         </div>
       </div>
     </div>
