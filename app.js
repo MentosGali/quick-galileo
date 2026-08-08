@@ -3150,8 +3150,7 @@ function generateLayerASMExport(baseName, rects, sprites, options = {}) {
   const bitmapHeight = options.height || CANVAS_HEIGHT;
 
   if (!bitmap) {
-    const totalCommands = countDrawCommands(safeRects, safeSprites);
-    if (options.forceBitmap || totalCommands > BITMAP_EXPORT_THRESHOLD) {
+    if (options.forceBitmap) {
       bitmap = rasterizeLayerToBitmap(
         safeRects,
         safeSprites,
@@ -3360,7 +3359,7 @@ async function exportASM() {
         mode: "frame",
         width: frame.canvasWidth || CANVAS_WIDTH,
         height: frame.canvasHeight || CANVAS_HEIGHT,
-        forceBitmap: frame.exportAsBitmap === true || frame.source === "gif",
+        forceBitmap: frame.exportAsBitmap === true,
       },
     ).files[`${procName}.asm`];
   });
@@ -4084,7 +4083,7 @@ async function processSelectedGIF() {
       sprites: [],
       canvasWidth: targetWidth,
       canvasHeight: targetHeight,
-      exportAsBitmap: true,
+      exportAsBitmap: false,
       source: "gif",
       visible: true,
     };
