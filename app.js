@@ -316,6 +316,56 @@ const VGA_PALETTE = [
   [128, 0, 128],
   [0, 128, 128],
 ];
+const DEFAULT_VGA_PALETTE_16 = [
+  [0, 0, 0],
+  [0, 0, 168],
+  [0, 168, 0],
+  [0, 168, 168],
+  [168, 0, 0],
+  [168, 0, 168],
+  [168, 84, 0],
+  [168, 168, 168],
+  [84, 84, 84],
+  [84, 84, 252],
+  [84, 252, 84],
+  [84, 252, 252],
+  [252, 84, 84],
+  [252, 84, 252],
+  [252, 252, 84],
+  [252, 252, 252],
+];
+
+function buildSafeVGAPalette(sourcePalette) {
+  const safePalette = [];
+  const source = Array.isArray(sourcePalette) ? sourcePalette : [];
+
+  for (let index = 0; index < 256; index++) {
+    const color = source[index];
+    if (
+      Array.isArray(color) &&
+      color.length >= 3 &&
+      color.every((component) => Number.isFinite(component))
+    ) {
+      safePalette.push([color[0], color[1], color[2]]);
+      continue;
+    }
+
+    if (index < DEFAULT_VGA_PALETTE_16.length) {
+      safePalette.push(DEFAULT_VGA_PALETTE_16[index]);
+      continue;
+    }
+
+    const cubeIndex = index - DEFAULT_VGA_PALETTE_16.length;
+    const red = Math.floor(cubeIndex / 36) % 6;
+    const green = Math.floor(cubeIndex / 6) % 6;
+    const blue = cubeIndex % 6;
+    safePalette.push([red * 51, green * 51, blue * 51]);
+  }
+
+  return safePalette;
+}
+
+const VGA_PALETTE_SAFE = buildSafeVGAPalette(VGA_PALETTE);
 
 // Devuelve el string CSS rgb() para un índice de paleta
 function vgaColor(index) {
@@ -369,6 +419,8 @@ const CANVAS_HEIGHT = 200;
 const BITMAP_SKIP_INDEX = 255;
 /** Por encima de este umbral se exporta como bitmap (1 .asm por capa). */
 const BITMAP_EXPORT_THRESHOLD = 250;
+/** Tamaño máximo seguro para cada bloque de datos bitmap dentro de un .asm. */
+const BITMAP_CHUNK_MAX_BYTES = 58000;
 const LIMITE_MEMORIA_BYTES = 400 * 1024;
 let memoriaConsumida = 0;
 
@@ -511,7 +563,7 @@ function createCanvasTooltip() {
 // ==========================================
 function renderPalette() {
   paletteContainer.innerHTML = "";
-  VGA_PALETTE.forEach((rgb, index) => {
+  VGA_PALETTE_SAFE.forEach((rgb, index) => {
     const swatch = document.createElement("div");
     swatch.className = "color-swatch";
     swatch.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
@@ -531,7 +583,7 @@ function renderPalette() {
 }
 
 function updateSelectedColorUI() {
-  const [r, g, b] = VGA_PALETTE[selectedColorIndex];
+  const [r, g, b] = VGA_PALETTE_SAFE[selectedColorIndex] || [0, 0, 0];
   selectedColorCircle.style.backgroundColor = `rgb(${r},${g},${b})`;
   selectedColorIndexText.textContent = `Idx: ${selectedColorIndex} | rgb(${r},${g},${b})`;
 }
@@ -1767,7 +1819,7 @@ function handlePointerMove(e) {
       isPointInRect(coords, r),
     );
     if (bgRect) {
-      const [r, g, b] = VGA_PALETTE[bgRect.colorIndex];
+      const [r, g, b] = VGA_PALETTE_SAFE[bgRect.colorIndex] || [0, 0, 0];
       hoveredInfo = {
         label: `🌅 Fondo | idx:${bgRect.colorIndex}`,
         color: `rgb(${r},${g},${b})`,
@@ -1793,7 +1845,7 @@ function handlePointerMove(e) {
 
     const found = frame.rectangles.find((r) => isPointInRect(coords, r));
     if (found) {
-      const [r, g, b] = VGA_PALETTE[found.colorIndex];
+      const [r, g, b] = VGA_PALETTE_SAFE[found.colorIndex] || [0, 0, 0];
       hoveredInfo = {
         label: `🎞️ ${frame.name} (#${fi + 1}) | idx:${found.colorIndex}`,
         color: `rgb(${r},${g},${b})`,
@@ -1874,7 +1926,7 @@ function drawSprite(sprite, opacity, mixBlue, isLayerEditable) {
   sprite.rects.forEach((rect) => {
     let fillColor;
     if (mixBlue) {
-      const [r, g, b] = VGA_PALETTE[rect.colorIndex];
+      const [r, g, b] = VGA_PALETTE_SAFE[rect.colorIndex] || [0, 0, 0];
       const mix = mixBlue;
       const nr = Math.round(r * (1 - mix) + 60 * mix);
       const ng = Math.round(g * (1 - mix) + 80 * mix);
@@ -1978,7 +2030,7 @@ function draw() {
       } else {
         frame.rectangles.forEach((rect) => {
           // Tinte azul para onion skin
-          const [r, g, b] = VGA_PALETTE[rect.colorIndex];
+          const [r, g, b] = VGA_PALETTE_SAFE[rect.colorIndex] || [0, 0, 0];
           const nr = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
           const ng = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
           const nb = Math.round(b * (1 - mixBlue) + 200 * mixBlue);
@@ -2023,7 +2075,7 @@ function drawBitmap(bitmap, opacity = 1, mixBlue = null) {
     const colorIndex = bitmap[i];
     if (colorIndex === BITMAP_SKIP_INDEX) continue;
 
-    let [r, g, b] = VGA_PALETTE[colorIndex] || [0, 0, 0];
+    let [r, g, b] = VGA_PALETTE_SAFE[colorIndex] || [0, 0, 0];
     if (mixBlue !== null) {
       r = Math.round(r * (1 - mixBlue) + 60 * mixBlue);
       g = Math.round(g * (1 - mixBlue) + 80 * mixBlue);
@@ -2968,53 +3020,61 @@ function generateBitmapASM(
   width = CANVAS_WIDTH,
   height = CANVAS_HEIGHT,
 ) {
-  const dataRows = formatBitmapAsDBRows(bitmap, width, height);
   const pixelCount = width * height;
+  const chunkRows = Math.max(
+    1,
+    Math.floor(BITMAP_CHUNK_MAX_BYTES / Math.max(1, width)),
+  );
+  const dataBlocks = [];
+  const copyBlocks = [];
+  let chunkIndex = 0;
 
-  const drawBody =
-    mode === "fondo"
-      ? [
-          "    PUSH DS",
-          "    PUSH BX",
-          "    MOV AX,@DATA",
-          "    MOV DS,AX",
-          "    MOV AX,0A000H",
-          "    MOV ES,AX",
-          "    CLD",
-          "    XOR DI,DI",
-          `    MOV CX,${pixelCount}`,
-          "@@copy_loop:",
-          "    LODSB",
-          "    MOV ES:[DI],AL",
-          "    INC DI",
-          "    LOOP @@copy_loop",
-          "    POP BX",
-          "    POP DS",
-          "    RET",
-        ].join("\n")
-      : [
-          "    PUSH DS",
-          "    PUSH BX",
-          "    MOV AX,@DATA",
-          "    MOV DS,AX",
-          "    MOV AX,0A000H",
-          "    MOV ES,AX",
-          "    CLD",
-          "    XOR DI,DI",
-          `    MOV CX,${pixelCount}`,
-          `    MOV BL,${BITMAP_SKIP_INDEX}`,
-          "@@copy_loop:",
-          "    LODSB",
-          "    CMP AL,BL",
-          "    JE @@skip_pixel",
-          "    MOV ES:[DI],AL",
-          "@@skip_pixel:",
-          "    INC DI",
-          "    LOOP @@copy_loop",
-          "    POP BX",
-          "    POP DS",
-          "    RET",
-        ].join("\n");
+  for (let startRow = 0; startRow < height; startRow += chunkRows) {
+    const currentChunkHeight = Math.min(chunkRows, height - startRow);
+    const startOffset = startRow * width;
+    const endOffset = startOffset + currentChunkHeight * width;
+    const chunkBitmap = bitmap.slice(startOffset, endOffset);
+    const chunkLabel = `${procName}_IMG_${chunkIndex}`;
+    const chunkPixelCount = currentChunkHeight * width;
+
+    dataBlocks.push(`${chunkLabel} LABEL BYTE`);
+    dataBlocks.push(
+      formatBitmapAsDBRows(chunkBitmap, width, currentChunkHeight),
+    );
+    dataBlocks.push("");
+
+    copyBlocks.push(`    LEA SI, ${chunkLabel}`);
+    copyBlocks.push(`    MOV CX,${chunkPixelCount}`);
+    copyBlocks.push(`@@copy_chunk_${chunkIndex}:`);
+    copyBlocks.push("    LODSB");
+    if (mode === "fondo") {
+      copyBlocks.push("    MOV ES:[DI],AL");
+    } else {
+      copyBlocks.push("    CMP AL,BL");
+      copyBlocks.push(`    JE @@skip_pixel_${chunkIndex}`);
+      copyBlocks.push("    MOV ES:[DI],AL");
+      copyBlocks.push(`@@skip_pixel_${chunkIndex}:`);
+    }
+    copyBlocks.push("    INC DI");
+    copyBlocks.push(`    LOOP @@copy_chunk_${chunkIndex}`);
+    copyBlocks.push("");
+    chunkIndex += 1;
+  }
+
+  const drawBody = [
+    "    PUSH DS",
+    "    PUSH BX",
+    "    MOV AX,@DATA",
+    "    MOV DS,AX",
+    "    MOV AX,0A000H",
+    "    MOV ES,AX",
+    "    CLD",
+    "    XOR DI,DI",
+    ...copyBlocks,
+    "    POP BX",
+    "    POP DS",
+    "    RET",
+  ].join("\n");
 
   return [
     "INCLUDE LIBRO.LIB",
@@ -3023,9 +3083,8 @@ function generateBitmapASM(
     ".MODEL LARGE",
     "",
     ".DATA",
-    `PUBLIC ${procName}_IMG`,
-    `${procName}_IMG LABEL BYTE`,
-    dataRows,
+    `PUBLIC ${procName}_IMG_0`,
+    ...dataBlocks,
     "",
     ".CODE",
     `PUBLIC ${procName}`,
@@ -3842,7 +3901,7 @@ async function processSelectedGIF() {
     let minDistance = Infinity;
     let closestIndex = 15; // default blanco
     for (let i = 0; i < VGA_PALETTE.length; i++) {
-      const [vr, vg, vb] = VGA_PALETTE[i];
+      const [vr, vg, vb] = VGA_PALETTE_SAFE[i] || [0, 0, 0];
       const dist = (r - vr) ** 2 + (g - vg) ** 2 + (b - vb) ** 2;
       if (dist < minDistance) {
         minDistance = dist;
