@@ -753,7 +753,9 @@ function setupEventListeners() {
   }
 
   // Eventos de Importación de Foto Estática
-  const btnImportPhotoTrigger = document.getElementById("btn-import-photo-trigger");
+  const btnImportPhotoTrigger = document.getElementById(
+    "btn-import-photo-trigger",
+  );
   const photoFileInput = document.getElementById("photo-file-input");
   if (btnImportPhotoTrigger && photoFileInput) {
     btnImportPhotoTrigger.addEventListener("click", () => {
@@ -763,8 +765,12 @@ function setupEventListeners() {
   }
 
   const btnClosePhotoModal = document.getElementById("btn-close-photo-modal");
-  const btnCancelPhotoImport = document.getElementById("btn-cancel-photo-import");
-  const btnConfirmPhotoImport = document.getElementById("btn-confirm-photo-import");
+  const btnCancelPhotoImport = document.getElementById(
+    "btn-cancel-photo-import",
+  );
+  const btnConfirmPhotoImport = document.getElementById(
+    "btn-confirm-photo-import",
+  );
   const photoImportModal = document.getElementById("photo-import-modal");
 
   if (btnClosePhotoModal && photoImportModal) {
@@ -804,14 +810,21 @@ function setupEventListeners() {
     updatePhotoOffsetState();
   }
 
-  const photoIgnoreColorModeSelect = document.getElementById("photo-ignore-color-mode");
-  const photoCustomIgnoreContainer = document.getElementById("photo-custom-ignore-container");
+  const photoIgnoreColorModeSelect = document.getElementById(
+    "photo-ignore-color-mode",
+  );
+  const photoCustomIgnoreContainer = document.getElementById(
+    "photo-custom-ignore-container",
+  );
   if (photoIgnoreColorModeSelect && photoCustomIgnoreContainer) {
     const updatePhotoIgnoreColorState = () => {
       photoCustomIgnoreContainer.style.display =
         photoIgnoreColorModeSelect.value === "custom" ? "block" : "none";
     };
-    photoIgnoreColorModeSelect.addEventListener("change", updatePhotoIgnoreColorState);
+    photoIgnoreColorModeSelect.addEventListener(
+      "change",
+      updatePhotoIgnoreColorState,
+    );
     updatePhotoIgnoreColorState();
   }
 
@@ -4313,24 +4326,43 @@ async function processSelectedPhoto() {
   if (!currentPhotoToProcess) return;
 
   const modal = document.getElementById("photo-import-modal");
-  const scalingMode = document.getElementById("photo-scaling")?.value || "center-fit";
-  const scaleFactor = parseInt(document.getElementById("photo-scale-factor")?.value || "1");
-  const detailLevel = document.getElementById("photo-detail-level")?.value || "160x100";
-  const offsetMode = document.getElementById("photo-offset-mode")?.value || "center";
-  const offsetX = parseInt(document.getElementById("photo-offset-x")?.value || "0");
-  const offsetY = parseInt(document.getElementById("photo-offset-y")?.value || "0");
-  const optimizationMode = document.getElementById("photo-optimization")?.value || "row-span";
-  
-  const ignoreColorMode = document.getElementById("photo-ignore-color-mode")?.value || "none";
+  const scalingMode =
+    document.getElementById("photo-scaling")?.value || "center-fit";
+  const scaleFactor = parseInt(
+    document.getElementById("photo-scale-factor")?.value || "1",
+  );
+  const detailLevel =
+    document.getElementById("photo-detail-level")?.value || "160x100";
+  const offsetMode =
+    document.getElementById("photo-offset-mode")?.value || "center";
+  const offsetX = parseInt(
+    document.getElementById("photo-offset-x")?.value || "0",
+  );
+  const offsetY = parseInt(
+    document.getElementById("photo-offset-y")?.value || "0",
+  );
+  const optimizationMode =
+    document.getElementById("photo-optimization")?.value || "row-span";
+
+  const ignoreColorMode =
+    document.getElementById("photo-ignore-color-mode")?.value || "none";
   let ignoreColorIndex = -1;
   if (ignoreColorMode === "index0") ignoreColorIndex = 0;
   else if (ignoreColorMode === "custom") {
-    ignoreColorIndex = parseInt(document.getElementById("photo-ignore-color-index")?.value || "0");
+    ignoreColorIndex = parseInt(
+      document.getElementById("photo-ignore-color-index")?.value || "0",
+    );
   }
 
-  let finalWidth = 320, finalHeight = 200;
-  if (detailLevel === "160x100") { finalWidth = 160; finalHeight = 100; }
-  else if (detailLevel === "80x50") { finalWidth = 80; finalHeight = 50; }
+  let finalWidth = 320,
+    finalHeight = 200;
+  if (detailLevel === "160x100") {
+    finalWidth = 160;
+    finalHeight = 100;
+  } else if (detailLevel === "80x50") {
+    finalWidth = 80;
+    finalHeight = 50;
+  }
 
   const offscreen = document.createElement("canvas");
   offscreen.width = finalWidth;
@@ -4340,7 +4372,10 @@ async function processSelectedPhoto() {
 
   const imgW = currentPhotoToProcess.width;
   const imgH = currentPhotoToProcess.height;
-  let drawX = 0, drawY = 0, drawW = finalWidth, drawH = finalHeight;
+  let drawX = 0,
+    drawY = 0,
+    drawW = finalWidth,
+    drawH = finalHeight;
 
   if (scalingMode === "center-fit") {
     const scale = Math.min(finalWidth / imgW, finalHeight / imgH);
@@ -4349,23 +4384,37 @@ async function processSelectedPhoto() {
     if (offsetMode === "center") {
       drawX = Math.floor((finalWidth - drawW) / 2);
       drawY = Math.floor((finalHeight - drawH) / 2);
-    } else { drawX = offsetX; drawY = offsetY; }
+    } else {
+      drawX = offsetX;
+      drawY = offsetY;
+    }
   } else if (scalingMode === "stretch") {
-    drawW = finalWidth; drawH = finalHeight;
-    if (offsetMode === "custom") { drawX = offsetX; drawY = offsetY; }
+    drawW = finalWidth;
+    drawH = finalHeight;
+    if (offsetMode === "custom") {
+      drawX = offsetX;
+      drawY = offsetY;
+    }
   } else if (scalingMode === "none") {
-    drawW = imgW; drawH = imgH;
+    drawW = imgW;
+    drawH = imgH;
     if (offsetMode === "center") {
       drawX = Math.floor((finalWidth - drawW) / 2);
       drawY = Math.floor((finalHeight - drawH) / 2);
-    } else { drawX = offsetX; drawY = offsetY; }
+    } else {
+      drawX = offsetX;
+      drawY = offsetY;
+    }
   } else if (scalingMode === "factor") {
     drawW = Math.floor(imgW * scaleFactor);
     drawH = Math.floor(imgH * scaleFactor);
     if (offsetMode === "center") {
       drawX = Math.floor((finalWidth - drawW) / 2);
       drawY = Math.floor((finalHeight - drawH) / 2);
-    } else { drawX = offsetX; drawY = offsetY; }
+    } else {
+      drawX = offsetX;
+      drawY = offsetY;
+    }
   }
 
   offCtx.drawImage(currentPhotoToProcess, drawX, drawY, drawW, drawH);
@@ -4373,16 +4422,44 @@ async function processSelectedPhoto() {
 
   const scaleX = CANVAS_WIDTH / finalWidth;
   const scaleY = CANVAS_HEIGHT / finalHeight;
-  
+
+  const colorCache = new Map();
+  function mapToVGAPalette(r, g, b) {
+    const key = (r << 16) | (g << 8) | b;
+    if (colorCache.has(key)) return colorCache.get(key);
+
+    let minDistance = Infinity;
+    let closestIndex = 15;
+    for (let i = 0; i < VGA_PALETTE.length; i++) {
+      const [vr, vg, vb] = VGA_PALETTE_SAFE[i] || [0, 0, 0];
+      const dist = (r - vr) ** 2 + (g - vg) ** 2 + (b - vb) ** 2;
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+    colorCache.set(key, closestIndex);
+    return closestIndex;
+  }
+
+  const layer = getActiveEditingLayer();
+  if (!layer) {
+    alert("No hay capa activa para dibujar la foto.");
+    modal.classList.remove("active");
+    return;
+  }
   const rects = [];
-  
+
   if (optimizationMode === "row-span") {
     for (let y = 0; y < finalHeight; y++) {
       let startX = -1;
       let currentColor = -1;
       for (let x = 0; x < finalWidth; x++) {
         const idx = (y * finalWidth + x) * 4;
-        const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+        const r = imgData[idx],
+          g = imgData[idx + 1],
+          b = imgData[idx + 2],
+          a = imgData[idx + 3];
         let mappedIndex = mapToVGAPalette(r, g, b);
         if (a < 128 || mappedIndex === ignoreColorIndex) {
           mappedIndex = -1;
@@ -4390,49 +4467,68 @@ async function processSelectedPhoto() {
 
         if (mappedIndex !== currentColor) {
           if (currentColor !== -1 && startX !== -1) {
-            rects.push({
+            const newRect = {
+              id: ++rectangleIdCounter,
               type: "rect",
               x1: Math.floor(startX * scaleX),
               y1: Math.floor(y * scaleY),
               x2: Math.floor(x * scaleX) - 1,
               y2: Math.floor((y + 1) * scaleY) - 1,
-              colorIndex: currentColor
-            });
+              colorIndex: currentColor,
+            };
+            rects.push(newRect);
+            layer.rectangles.push(newRect);
+            agregarInstruccion(newRect.type);
           }
-          startX = (mappedIndex !== -1) ? x : -1;
+          startX = mappedIndex !== -1 ? x : -1;
           currentColor = mappedIndex;
         }
       }
       if (currentColor !== -1 && startX !== -1) {
-        rects.push({
+        const newRect = {
+          id: ++rectangleIdCounter,
           type: "rect",
           x1: Math.floor(startX * scaleX),
           y1: Math.floor(y * scaleY),
           x2: Math.floor(finalWidth * scaleX) - 1,
           y2: Math.floor((y + 1) * scaleY) - 1,
-          colorIndex: currentColor
-        });
+          colorIndex: currentColor,
+        };
+        rects.push(newRect);
+        layer.rectangles.push(newRect);
+        agregarInstruccion(newRect.type);
       }
     }
   } else {
     for (let y = 0; y < finalHeight; y++) {
       for (let x = 0; x < finalWidth; x++) {
         const idx = (y * finalWidth + x) * 4;
-        const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+        const r = imgData[idx],
+          g = imgData[idx + 1],
+          b = imgData[idx + 2],
+          a = imgData[idx + 3];
         const mappedIndex = mapToVGAPalette(r, g, b);
         if (a >= 128 && mappedIndex !== ignoreColorIndex) {
-          rects.push({
-            type: "rect", 
+          const newRect = {
+            id: ++rectangleIdCounter,
+            type: "rect",
             x1: Math.floor(x * scaleX),
             y1: Math.floor(y * scaleY),
             x2: Math.floor((x + 1) * scaleX) - 1,
             y2: Math.floor((y + 1) * scaleY) - 1,
-            colorIndex: mappedIndex
-          });
+            colorIndex: mappedIndex,
+          };
+          rects.push(newRect);
+          layer.rectangles.push(newRect);
+          agregarInstruccion(newRect.type);
         }
       }
     }
   }
+
+  draw();
+  updateHistoryUI();
+  updateFramesUI();
 
   modal.classList.remove("active");
   exportPhotoASM(rects);
@@ -4440,7 +4536,49 @@ async function processSelectedPhoto() {
 
 function exportPhotoASM(rects) {
   const safeRects = (rects || []).map(normalizeExportRect);
-  const commands = buildCommandsBlock(safeRects, []);
+  
+  const CHUNK_SIZE = 800; // Máximo de macros por archivo ASM
+  let chunks = [];
+  for (let i = 0; i < safeRects.length; i += CHUNK_SIZE) {
+    chunks.push(safeRects.slice(i, i + CHUNK_SIZE));
+  }
+
+  const files = {};
+  let linkObjects = ["photo.obj"];
+  let tasmCommands = ["tasm /zi photo.asm", "if errorlevel 1 goto error"];
+  let procCalls = "";
+
+  if (chunks.length === 0) {
+    procCalls = "    ; (capa vacía)\n";
+  } else {
+    chunks.forEach((chunk, index) => {
+      const chunkProcName = `DRAW_CHUNK_${index}`;
+      const commands = buildCommandsBlock(chunk, []);
+      procCalls += `    CALL ${chunkProcName}\r\n`;
+
+      // Generar archivo secundario para este chunk
+      const chunkAsm = [
+        "INCLUDE LIBRO.LIB",
+        "INCLUDE M.LIB",
+        "",
+        ".MODEL LARGE",
+        ".CODE",
+        `PUBLIC ${chunkProcName}`,
+        `${chunkProcName} PROC`,
+        "MOV AX,@DATA",
+        "MOV DS,AX",
+        commands.trimEnd(),
+        "RET",
+        `${chunkProcName} ENDP`,
+        `END`
+      ].join("\r\n");
+
+      files[`photo${index}.asm`] = chunkAsm;
+      linkObjects.push(`photo${index}.obj`);
+      tasmCommands.push(`tasm /zi photo${index}.asm`);
+      tasmCommands.push(`if errorlevel 1 goto error`);
+    });
+  }
   
   const photoAsm = [
     "INCLUDE LIBRO.LIB",
@@ -4450,13 +4588,15 @@ function exportPhotoASM(rects) {
     ".DATA",
     ".CODE",
     "",
+    ...chunks.map((_, i) => `EXTRN DRAW_CHUNK_${i}:PROC`),
+    "",
     "main PROC",
     "MOV AX,@DATA",
     "MOV DS,AX",
     "",
     "MODO_VGA",
     "",
-    commands.trimEnd(),
+    procCalls.trimEnd(),
     "",
     "MOV AH,00H",
     "INT 16H",
@@ -4465,33 +4605,31 @@ function exportPhotoASM(rects) {
     "EXIT",
     "main ENDP",
     "END main"
-  ].join("\\r\\n");
+  ].join("\r\n");
   
   const buildBat = [
     "@echo off",
     "echo Compilando Foto a ASM...",
-    "tasm /zi photo.asm",
-    "if errorlevel 1 goto error",
-    "tlink /v /3 photo.obj",
+    ...tasmCommands,
+    `tlink /v /3 ${linkObjects.join("+")}`,
     "if errorlevel 1 goto error",
     "echo Compilacion exitosa.",
     "goto end",
     ":error",
     "echo Hubo errores en la compilacion.",
     ":end"
-  ].join("\\r\\n");
+  ].join("\r\n");
 
-  const files = {
-    "photo.asm": photoAsm,
-    "build.bat": buildBat
-  };
+  files["photo.asm"] = photoAsm;
+  files["build.bat"] = buildBat;
 
   if (typeof JSZip !== "undefined") {
     const zip = new JSZip();
-    zip.file("photo.asm", files["photo.asm"]);
-    zip.file("build.bat", files["build.bat"]);
+    Object.entries(files).forEach(([name, content]) => {
+      zip.file(name, content);
+    });
     zip.generateAsync({ type: "blob" }).then(blob => {
-      downloadBlob(blob, \`photo_asm_\${Date.now()}.zip\`);
+      downloadBlob(blob, `photo_asm_${Date.now()}.zip`);
     });
   } else {
     Object.entries(files).forEach(([name, content]) => {
