@@ -752,6 +752,69 @@ function setupEventListeners() {
     updateIgnoreColorState();
   }
 
+  // Eventos de Importación de Foto Estática
+  const btnImportPhotoTrigger = document.getElementById("btn-import-photo-trigger");
+  const photoFileInput = document.getElementById("photo-file-input");
+  if (btnImportPhotoTrigger && photoFileInput) {
+    btnImportPhotoTrigger.addEventListener("click", () => {
+      photoFileInput.click();
+    });
+    photoFileInput.addEventListener("change", handleImportPhotoFile);
+  }
+
+  const btnClosePhotoModal = document.getElementById("btn-close-photo-modal");
+  const btnCancelPhotoImport = document.getElementById("btn-cancel-photo-import");
+  const btnConfirmPhotoImport = document.getElementById("btn-confirm-photo-import");
+  const photoImportModal = document.getElementById("photo-import-modal");
+
+  if (btnClosePhotoModal && photoImportModal) {
+    btnClosePhotoModal.addEventListener("click", () => {
+      photoImportModal.classList.remove("active");
+    });
+  }
+  if (btnCancelPhotoImport && photoImportModal) {
+    btnCancelPhotoImport.addEventListener("click", () => {
+      photoImportModal.classList.remove("active");
+    });
+  }
+  if (btnConfirmPhotoImport) {
+    btnConfirmPhotoImport.addEventListener("click", processSelectedPhoto);
+  }
+
+  const photoScalingSelect = document.getElementById("photo-scaling");
+  const photoScaleFactorField = document.getElementById("photo-scale-factor");
+  if (photoScalingSelect && photoScaleFactorField) {
+    const updatePhotoFactorState = () => {
+      photoScaleFactorField.disabled = photoScalingSelect.value !== "factor";
+    };
+    photoScalingSelect.addEventListener("change", updatePhotoFactorState);
+    updatePhotoFactorState();
+  }
+
+  const photoOffsetModeSelect = document.getElementById("photo-offset-mode");
+  const photoOffsetXField = document.getElementById("photo-offset-x");
+  const photoOffsetYField = document.getElementById("photo-offset-y");
+  if (photoOffsetModeSelect && photoOffsetXField && photoOffsetYField) {
+    const updatePhotoOffsetState = () => {
+      const isCustom = photoOffsetModeSelect.value === "custom";
+      photoOffsetXField.disabled = !isCustom;
+      photoOffsetYField.disabled = !isCustom;
+    };
+    photoOffsetModeSelect.addEventListener("change", updatePhotoOffsetState);
+    updatePhotoOffsetState();
+  }
+
+  const photoIgnoreColorModeSelect = document.getElementById("photo-ignore-color-mode");
+  const photoCustomIgnoreContainer = document.getElementById("photo-custom-ignore-container");
+  if (photoIgnoreColorModeSelect && photoCustomIgnoreContainer) {
+    const updatePhotoIgnoreColorState = () => {
+      photoCustomIgnoreContainer.style.display =
+        photoIgnoreColorModeSelect.value === "custom" ? "block" : "none";
+    };
+    photoIgnoreColorModeSelect.addEventListener("change", updatePhotoIgnoreColorState);
+    updatePhotoIgnoreColorState();
+  }
+
   renderTextModeConsole();
   updateTextFieldsUI();
 }
@@ -4214,5 +4277,228 @@ document.addEventListener("keydown", (e) => {
     updateHistoryUI();
   }
 });
+
+// ==========================================
+// MODO PHOTO IMPORT
+// ==========================================
+let currentPhotoToProcess = null;
+
+async function handleImportPhotoFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const photoImportModal = document.getElementById("photo-import-modal");
+  const photoInfoDetails = document.getElementById("photo-info-details");
+  if (!photoImportModal || !photoInfoDetails) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      currentPhotoToProcess = img;
+      photoInfoDetails.innerHTML = `
+        <strong>Archivo:</strong> ${file.name}<br>
+        <strong>Tamaño original:</strong> ${img.width}x${img.height} px<br>
+        <strong>Peso:</strong> ${(file.size / 1024).toFixed(1)} KB
+      `;
+      photoImportModal.classList.add("active");
+    };
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ""; // reset
+}
+
+async function processSelectedPhoto() {
+  if (!currentPhotoToProcess) return;
+
+  const modal = document.getElementById("photo-import-modal");
+  const scalingMode = document.getElementById("photo-scaling")?.value || "center-fit";
+  const scaleFactor = parseInt(document.getElementById("photo-scale-factor")?.value || "1");
+  const detailLevel = document.getElementById("photo-detail-level")?.value || "160x100";
+  const offsetMode = document.getElementById("photo-offset-mode")?.value || "center";
+  const offsetX = parseInt(document.getElementById("photo-offset-x")?.value || "0");
+  const offsetY = parseInt(document.getElementById("photo-offset-y")?.value || "0");
+  const optimizationMode = document.getElementById("photo-optimization")?.value || "row-span";
+  
+  const ignoreColorMode = document.getElementById("photo-ignore-color-mode")?.value || "none";
+  let ignoreColorIndex = -1;
+  if (ignoreColorMode === "index0") ignoreColorIndex = 0;
+  else if (ignoreColorMode === "custom") {
+    ignoreColorIndex = parseInt(document.getElementById("photo-ignore-color-index")?.value || "0");
+  }
+
+  let finalWidth = 320, finalHeight = 200;
+  if (detailLevel === "160x100") { finalWidth = 160; finalHeight = 100; }
+  else if (detailLevel === "80x50") { finalWidth = 80; finalHeight = 50; }
+
+  const offscreen = document.createElement("canvas");
+  offscreen.width = finalWidth;
+  offscreen.height = finalHeight;
+  const offCtx = offscreen.getContext("2d");
+  offCtx.clearRect(0, 0, finalWidth, finalHeight);
+
+  const imgW = currentPhotoToProcess.width;
+  const imgH = currentPhotoToProcess.height;
+  let drawX = 0, drawY = 0, drawW = finalWidth, drawH = finalHeight;
+
+  if (scalingMode === "center-fit") {
+    const scale = Math.min(finalWidth / imgW, finalHeight / imgH);
+    drawW = Math.floor(imgW * scale);
+    drawH = Math.floor(imgH * scale);
+    if (offsetMode === "center") {
+      drawX = Math.floor((finalWidth - drawW) / 2);
+      drawY = Math.floor((finalHeight - drawH) / 2);
+    } else { drawX = offsetX; drawY = offsetY; }
+  } else if (scalingMode === "stretch") {
+    drawW = finalWidth; drawH = finalHeight;
+    if (offsetMode === "custom") { drawX = offsetX; drawY = offsetY; }
+  } else if (scalingMode === "none") {
+    drawW = imgW; drawH = imgH;
+    if (offsetMode === "center") {
+      drawX = Math.floor((finalWidth - drawW) / 2);
+      drawY = Math.floor((finalHeight - drawH) / 2);
+    } else { drawX = offsetX; drawY = offsetY; }
+  } else if (scalingMode === "factor") {
+    drawW = Math.floor(imgW * scaleFactor);
+    drawH = Math.floor(imgH * scaleFactor);
+    if (offsetMode === "center") {
+      drawX = Math.floor((finalWidth - drawW) / 2);
+      drawY = Math.floor((finalHeight - drawH) / 2);
+    } else { drawX = offsetX; drawY = offsetY; }
+  }
+
+  offCtx.drawImage(currentPhotoToProcess, drawX, drawY, drawW, drawH);
+  const imgData = offCtx.getImageData(0, 0, finalWidth, finalHeight).data;
+
+  const scaleX = CANVAS_WIDTH / finalWidth;
+  const scaleY = CANVAS_HEIGHT / finalHeight;
+  
+  const rects = [];
+  
+  if (optimizationMode === "row-span") {
+    for (let y = 0; y < finalHeight; y++) {
+      let startX = -1;
+      let currentColor = -1;
+      for (let x = 0; x < finalWidth; x++) {
+        const idx = (y * finalWidth + x) * 4;
+        const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+        let mappedIndex = mapToVGAPalette(r, g, b);
+        if (a < 128 || mappedIndex === ignoreColorIndex) {
+          mappedIndex = -1;
+        }
+
+        if (mappedIndex !== currentColor) {
+          if (currentColor !== -1 && startX !== -1) {
+            rects.push({
+              type: "rect",
+              x1: Math.floor(startX * scaleX),
+              y1: Math.floor(y * scaleY),
+              x2: Math.floor(x * scaleX) - 1,
+              y2: Math.floor((y + 1) * scaleY) - 1,
+              colorIndex: currentColor
+            });
+          }
+          startX = (mappedIndex !== -1) ? x : -1;
+          currentColor = mappedIndex;
+        }
+      }
+      if (currentColor !== -1 && startX !== -1) {
+        rects.push({
+          type: "rect",
+          x1: Math.floor(startX * scaleX),
+          y1: Math.floor(y * scaleY),
+          x2: Math.floor(finalWidth * scaleX) - 1,
+          y2: Math.floor((y + 1) * scaleY) - 1,
+          colorIndex: currentColor
+        });
+      }
+    }
+  } else {
+    for (let y = 0; y < finalHeight; y++) {
+      for (let x = 0; x < finalWidth; x++) {
+        const idx = (y * finalWidth + x) * 4;
+        const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+        const mappedIndex = mapToVGAPalette(r, g, b);
+        if (a >= 128 && mappedIndex !== ignoreColorIndex) {
+          rects.push({
+            type: "rect", 
+            x1: Math.floor(x * scaleX),
+            y1: Math.floor(y * scaleY),
+            x2: Math.floor((x + 1) * scaleX) - 1,
+            y2: Math.floor((y + 1) * scaleY) - 1,
+            colorIndex: mappedIndex
+          });
+        }
+      }
+    }
+  }
+
+  modal.classList.remove("active");
+  exportPhotoASM(rects);
+}
+
+function exportPhotoASM(rects) {
+  const safeRects = (rects || []).map(normalizeExportRect);
+  const commands = buildCommandsBlock(safeRects, []);
+  
+  const photoAsm = [
+    "INCLUDE LIBRO.LIB",
+    "INCLUDE M.LIB",
+    "",
+    ".MODEL LARGE",
+    ".DATA",
+    ".CODE",
+    "",
+    "main PROC",
+    "MOV AX,@DATA",
+    "MOV DS,AX",
+    "",
+    "MODO_VGA",
+    "",
+    commands.trimEnd(),
+    "",
+    "MOV AH,00H",
+    "INT 16H",
+    "",
+    "MODO_TXT",
+    "EXIT",
+    "main ENDP",
+    "END main"
+  ].join("\\r\\n");
+  
+  const buildBat = [
+    "@echo off",
+    "echo Compilando Foto a ASM...",
+    "tasm /zi photo.asm",
+    "if errorlevel 1 goto error",
+    "tlink /v /3 photo.obj",
+    "if errorlevel 1 goto error",
+    "echo Compilacion exitosa.",
+    "goto end",
+    ":error",
+    "echo Hubo errores en la compilacion.",
+    ":end"
+  ].join("\\r\\n");
+
+  const files = {
+    "photo.asm": photoAsm,
+    "build.bat": buildBat
+  };
+
+  if (typeof JSZip !== "undefined") {
+    const zip = new JSZip();
+    zip.file("photo.asm", files["photo.asm"]);
+    zip.file("build.bat", files["build.bat"]);
+    zip.generateAsync({ type: "blob" }).then(blob => {
+      downloadBlob(blob, \`photo_asm_\${Date.now()}.zip\`);
+    });
+  } else {
+    Object.entries(files).forEach(([name, content]) => {
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, name);
+    });
+  }
+}
 
 window.addEventListener("DOMContentLoaded", init);

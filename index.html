@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -545,6 +545,13 @@
             >
               <span class="btn-icon">🖼️</span> Importar GIF animado
             </button>
+            <button
+              id="btn-import-photo-trigger"
+              class="btn btn-secondary btn-block"
+              style="width: 100%"
+            >
+              <span class="btn-icon">📷</span> Importar Foto JPG/PNG
+            </button>
             <input
               type="file"
               id="import-file-input"
@@ -555,6 +562,12 @@
               type="file"
               id="gif-file-input"
               accept=".gif"
+              style="display: none"
+            />
+            <input
+              type="file"
+              id="photo-file-input"
+              accept="image/png, image/jpeg, image/jpg"
               style="display: none"
             />
           </div>
@@ -756,6 +769,166 @@
           </button>
           <button id="btn-confirm-gif-import" class="btn btn-primary">
             Importar Fotogramas
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para Importación de Foto Estática -->
+    <div id="photo-import-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="photo-modal-title">Configuración de Importación de Foto</h3>
+          <button id="btn-close-photo-modal" class="modal-close">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-info-panel">
+            <div class="modal-info-title">Detalles del Archivo</div>
+            <div id="photo-info-details" class="modal-info-text">
+              Analizando archivo...
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="photo-scaling">Escalado / Tamaño</label>
+              <select id="photo-scaling">
+                <option value="center-fit" selected>
+                  Ajustar a 320x200 (Proporcional)
+                </option>
+                <option value="stretch">
+                  Estirar a 320x200 (Llenar pantalla)
+                </option>
+                <option value="none">Mantener tamaño original (1:1)</option>
+                <option value="factor">Multiplicador de escala</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="photo-scale-factor">Factor de escala</label>
+              <input
+                type="number"
+                id="photo-scale-factor"
+                value="1"
+                min="1"
+                max="10"
+                step="1"
+              />
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="photo-detail-level">Nivel de detalle ASM</label>
+              <select id="photo-detail-level">
+                <option value="320x200">Alto: 320x200</option>
+                <option value="160x100" selected>
+                  Medio: 160x100 (Recomendado)
+                </option>
+                <option value="80x50">Bajo: 80x50 (Muy liviano)</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <span
+                style="
+                  display: block;
+                  margin-top: 1.5rem;
+                  font-size: 0.75rem;
+                  color: var(--text-muted);
+                "
+              >
+                Menos detalle = menos pixeles = ASM mas liviano para
+                TASM/DOSBox.
+              </span>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="photo-offset-mode">Alineación / Posición</label>
+              <select id="photo-offset-mode">
+                <option value="center" selected>
+                  Centrado automáticamente
+                </option>
+                <option value="custom">
+                  Desplazamiento personalizado (X, Y)
+                </option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <div class="modal-row" style="gap: 6px">
+                <div class="modal-field">
+                  <label
+                    for="photo-offset-x"
+                    style="font-size: 0.75rem; color: var(--text-muted)"
+                    >Offset X</label
+                  >
+                  <input type="number" id="photo-offset-x" value="0" />
+                </div>
+                <div class="modal-field">
+                  <label
+                    for="photo-offset-y"
+                    style="font-size: 0.75rem; color: var(--text-muted)"
+                    >Offset Y</label
+                  >
+                  <input type="number" id="photo-offset-y" value="0" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-row">
+            <div class="modal-field">
+              <label for="photo-optimization">Optimización TASM 16 bits</label>
+              <select id="photo-optimization">
+                <option value="row-span" selected>
+                  DRAW_REGION (Líneas horizontales - Recomendado)
+                </option>
+                <option value="pixel">
+                  PINTAR_PIXEL (Píxel por píxel - Muy pesado)
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-row" style="margin-top: 4px">
+            <div class="modal-field">
+              <label for="photo-ignore-color-mode"
+                >Color VGA a ignorar (transparencia)</label
+              >
+              <select id="photo-ignore-color-mode">
+                <option value="none" selected>Ninguno</option>
+                <option value="index0">
+                  Índice 0 (Negro - Recomendado para reducir tamaño)
+                </option>
+                <option value="custom">Índice personalizado</option>
+              </select>
+            </div>
+            <div
+              class="modal-field"
+              id="photo-custom-ignore-container"
+              style="display: none"
+            >
+              <label for="photo-ignore-color-index"
+                >Índice de color VGA (0-255)</label
+              >
+              <input
+                type="number"
+                id="photo-ignore-color-index"
+                value="0"
+                min="0"
+                max="255"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-photo-import" class="btn btn-secondary">
+            Cancelar
+          </button>
+          <button id="btn-confirm-photo-import" class="btn btn-primary">
+            Exportar Foto a ASM
           </button>
         </div>
       </div>
